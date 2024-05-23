@@ -5,7 +5,7 @@ import CategoryController from "./controllers/category/CategoryController";
 import BudgetController from "./controllers/budget/BudgetController";
 import CompanyController from "./controllers/company/CompanyController";
 import CityController from "./controllers/city/CityController";
-import ClientController from "./controllers/client/ClientController";
+import CustomerController from "./controllers/customer/CustomerController";
 import SupplierController from "./controllers/supplier/SupplierController";
 const routes = Router();
 
@@ -34,11 +34,11 @@ routes.put("/cities/:id", new CityController().update);
 routes.delete("/cities/:id", new CityController().delete);
 
 // Routes for the Client entity
-routes.post("/clients", new ClientController().create);
-routes.get("/clients", new ClientController().findAll);
-routes.get("/clients/:id", new ClientController().findById);
-routes.put("/clients/:id", new ClientController().update);
-routes.delete("/clients/:id", new ClientController().delete);
+routes.post("/clients", new CustomerController().create);
+routes.get("/clients", new CustomerController().findAll);
+routes.get("/clients/:id", new CustomerController().findById);
+routes.put("/clients/:id", new CustomerController().update);
+routes.delete("/clients/:id", new CustomerController().delete);
 
 // Routes for the Product entity
 routes.post("/products", new ProductController().create);

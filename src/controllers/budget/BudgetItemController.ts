@@ -23,7 +23,7 @@ export default class BudgetItemController {
       return response.status(400).json({ error: "Product ID or Service ID is required" });
     }
 
-    const budgetItemAlreadyExists = await Prisma.budgetItem.findFirst({
+    const budgetItemAlreadyExists = await Prisma.orcamentoItens.findFirst({
       where: {
         budgetId,
         productId,
@@ -43,7 +43,7 @@ export default class BudgetItemController {
       }
     }
 
-    const budgetItem = await Prisma.budgetItem.create({
+    const budgetItem = await Prisma.orcamentoItens.create({
       data: {
         budgetId,
         productId,
@@ -67,7 +67,7 @@ export default class BudgetItemController {
       }
     }
 
-    const budgetItem = await Prisma.budgetItem.update({
+    const budgetItem = await Prisma.orcamentoItens.update({
       where: {
         id: Number(id)
       },
@@ -82,7 +82,7 @@ export default class BudgetItemController {
   async delete(request: Request, response: Response) {
     const { id } = request.params;
 
-    await Prisma.budgetItem.delete({
+    await Prisma.orcamentoItens.delete({
       where: {
         id: Number(id)
       }

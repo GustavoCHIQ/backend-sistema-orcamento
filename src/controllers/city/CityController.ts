@@ -1,4 +1,3 @@
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { Request, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
 import * as yup from 'yup';

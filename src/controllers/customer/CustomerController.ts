@@ -27,7 +27,7 @@ const updateClientSchema = yup.object().shape({
   address: yup.string().optional()
 });
 
-export default class ClientController {
+export default class CustomerController {
   async create(req: Request, res: Response) {
     const { name, email, phone, cpfOrCnpj, rgOrIe, cityId, address } = req.body;
 
