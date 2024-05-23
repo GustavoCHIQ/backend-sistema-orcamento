@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Empresa {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  cnpj      String   @db.VarChar(14)
+  phone     String   @db.VarChar(20)
+  ie        String   @db.VarChar(20)
+  email     String   @db.VarChar(60)
+  address   String   @db.VarChar(255)
+  pngLogo   String?  @db.VarChar(255)
+  // field opcional
+  city      String   @db.VarChar(30)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Usuarios {
+  id        Int          @id @default(autoincrement())
+  name      String       @db.VarChar(100)
+  password  String       @db.VarChar(100)
+  email     String       @unique @db.VarChar(60)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  orcamento Orcamentos[]
+}
+
+model Clientes {
+  id         Int          @id @default(autoincrement())
+  name       String       @db.VarChar(250)
+  email      String       @unique
+  phone      String       @db.VarChar(20)
+  type       TipoCliente  @default(PessoaFisica)
+  cpfOrCnpj  String       @db.VarChar(50)
+  rgOrIe     String       @db.VarChar(50)
+  cityId     Int
+  address    String       @db.VarChar(255)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  orcamentos Orcamentos[]
+  cidades    Cidades      @relation(fields: [cityId], references: [id])
+}
+
+model Cidades {
+  id       Int        @id @default(autoincrement())
+  name     String     @db.VarChar(100)
+  state    String     @db.VarChar(2)
+  country  String     @db.VarChar(50)
+  cep      String     @db.VarChar(8)
+  clientes Clientes[]
+}
+
+model Produtos {
+  id             Int              @id @default(autoincrement())
+  name           String           @db.VarChar(255)
+  description    String           @db.VarChar(255)
+  price          Float
+  categoryId     Int
+  supplierId     Int
+  units          Unidades         @default(UN)
+  orcamentoItens OrcamentoItens[]
+  categorias     Categorias       @relation(fields: [categoryId], references: [id])
+  fornecedores   Fornecedores     @relation(fields: [supplierId], references: [id])
+}
+
+model Servicos {
+  id    Int    @id @default(autoincrement())
+  name  String
+  price Float
+}
+
+model Categorias {
+  id       Int        @id @default(autoincrement())
+  name     String
+  produtos Produtos[]
+}
+
+model Fornecedores {
+  id          Int        @id @default(autoincrement())
+  name        String     @db.VarChar(255)
+  contactInfo String     @db.VarChar(20)
+  email       String     @db.VarChar(60)
+  cnpj        String     @db.VarChar(14)
+  products    Produtos[]
+}
+
+model Orcamentos {
+  id         Int              @id @default(autoincrement())
+  userId     Int
+  clientId   Int
+  totalPrice Float
+  discount   Float
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  isApproved Boolean          @default(false)
+  client     Clientes         @relation(fields: [clientId], references: [id])
+  user       Usuarios         @relation(fields: [userId], references: [id])
+  items      OrcamentoItens[]
+}
+
+model OrcamentoItens {
+  id         Int        @id @default(autoincrement())
+  budgetId   Int
+  productId  Int?
+  serviceId  Int?
+  quantity   Int        @default(1)
+  discount   Float      @default(0)
+  totalPrice Float      @default(0)
+  orcamentos Orcamentos @relation(fields: [budgetId], references: [id])
+  produtos   Produtos?  @relation(fields: [productId], references: [id])
+}
+
+enum TipoCliente {
+  PessoaFisica
+  PessoaJuridica
+}
+
+enum Unidades {
+  UN
+  KG
+  M
+  M2
+  M3
+  L
+  ML
+  CM
+  CM2
+  CM3
+  MM
+  MM2
+  MM3
+  G
+  MG
+  T
+  TON
+  H
+  MIN
+  S
+  MS
+  KM
+  KM2
+  KM3
+  LITRO
+  MLITRO
+  M3LITRO
+  M2LITRO
+  M2MLITRO
+  M3MLITRO
+}

@@ -1,0 +1,6 @@
+node_modules
+package-lock.json
+tsconfig.json
+# Keep environment variables out of version control
+.env
+prisma/migrations

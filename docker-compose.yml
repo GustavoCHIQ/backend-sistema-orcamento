@@ -1,0 +1,26 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:10.3
+    restart: always
+    environment:
+      - POSTGRES_USER=gustavo
+      - POSTGRES_PASSWORD=Ygl73274267@
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=luis.gustavo09@hotmail.com
+      - PGADMIN_DEFAULT_PASSWORD=ygl73274267@
+    ports:
+      - '80:80'
+    depends_on:
+      - postgres
+
+volumes:
+  postgres:
