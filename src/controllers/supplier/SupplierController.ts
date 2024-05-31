@@ -1,30 +1,30 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import * as yup from 'yup';
+import { z } from 'zod';
+
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const prisma = new PrismaClient();
 
-const createSupplierSchema = yup.object().shape({
-  name: yup.string().required('Name is required'),
-  contactInfo: yup.string().required('Contact Info is required'),
-  email: yup.string().email().required('Email is required'),
-  cnpj: yup.string().required('CNPJ is required')
+const createSupplierSchema = z.object({
+  name: z.string({ required_error: 'Name is required' }),
+  contactInfo: z.string({ required_error: 'Contact info is required' }),
+  email: z.string({ required_error: 'Email is required' }).email(),
+  cnpj: z.string({ required_error: 'CNPJ is required' })
 });
 
-const updateSupplierSchema = yup.object().shape({
-  name: yup.string().optional(),
-  contactInfo: yup.string().optional(),
-  email: yup.string().email().optional(),
-  cnpj: yup.string().optional()
+const updateSupplierSchema = z.object({
+  name: z.string().optional(),
+  contactInfo: z.string().optional(),
+  email: z.string().email().optional(),
+  cnpj: z.string().optional()
 });
 
 export default class SupplierController {
-  async create(req: Request, res: Response) {
+  async create(req: Request, res: Response): Promise<Response> {
+    const { name, contactInfo, email, cnpj } = req.body;
     try {
-      await createSupplierSchema.validate(req.body, { abortEarly: false });
-
-      const { name, contactInfo, email, cnpj } = req.body;
+      createSupplierSchema.parseAsync(req.body);
       const supplier = await prisma.fornecedores.create({
         data: {
           name,
@@ -35,14 +35,14 @@ export default class SupplierController {
       });
       return res.json({ message: "Supplier created", supplier });
     } catch (err) {
-      if (err instanceof yup.ValidationError) {
+      if (err instanceof z.ZodError) {
         return res.status(400).json({ errors: err.errors });
       }
       return res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  async findAll(req: Request, res: Response) {
+  async findAll(req: Request, res: Response): Promise<Response> {
     const suppliers = await prisma.fornecedores.findMany({
       select: {
         id: true,
@@ -54,8 +54,9 @@ export default class SupplierController {
     return res.json(suppliers);
   }
 
-  async findById(req: Request, res: Response) {
+  async findById(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
+
     const supplier = await prisma.fornecedores.findUnique({
       where: {
         id: Number(id),
@@ -64,7 +65,7 @@ export default class SupplierController {
     return res.json(supplier);
   }
 
-  async update(req: Request, res: Response) {
+  async update(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
 
     const supplierNotExists = await prisma.fornecedores.findUnique({
@@ -81,7 +82,7 @@ export default class SupplierController {
     }
 
     try {
-      await updateSupplierSchema.validate(req.body, { abortEarly: false });
+      await updateSupplierSchema.parseAsync(req.body);
 
       const supplier = await prisma.fornecedores.update({
         where: {
@@ -91,18 +92,18 @@ export default class SupplierController {
       });
       return res.json({ message: "Supplier updated", supplier });
     } catch (err) {
-      if (err instanceof yup.ValidationError) {
+      if (err instanceof z.ZodError) {
         return res.status(400).json({ errors: err.errors });
       }
       return res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  async delete(req: Request, res: Response) {
+  async delete(req: Request, res: Response): Promise<any> {
     const { id } = req.params;
 
     try {
-      await prisma.fornecedores.delete({
+      prisma.fornecedores.delete({
         where: {
           id: Number(id),
         },

@@ -1,34 +1,34 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import * as yup from 'yup';
+import { z } from 'zod';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const prisma = new PrismaClient();
 
-const createProductSchema = yup.object().shape({
-  name: yup.string().required('Name is required'),
-  description: yup.string().required('Description is required'),
-  price: yup.number().required('Price is required'),
-  categoryId: yup.number().required('Category is required'),
-  supplierId: yup.number().required('Supplier is required')
+const createProductSchema = z.object({
+  name: z.string({ required_error: 'Name is required' }),
+  description: z.string({ required_error: 'Description is required' }),
+  price: z.number({ required_error: 'Price is required' }),
+  categoryId: z.number({ required_error: 'Category ID is required' }),
+  supplierId: z.number({ required_error: 'Supplier ID is required' })
 });
 
-const updateProductSchema = yup.object().shape({
-  name: yup.string().optional(),
-  description: yup.string().optional(),
-  price: yup.number().optional(),
-  categoryId: yup.number().optional(),
-  supplierId: yup.number().optional()
+const updateProductSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().optional(),
+  price: z.number().optional(),
+  categoryId: z.number().optional(),
+  supplierId: z.number().optional()
 });
 
 export default class ProductController {
-  async create(req: Request, res: Response) {
+  async create(req: Request, res: Response): Promise<Response> {
     const { name, description, price, categoryId, supplierId } = req.body;
 
     try {
-      await createProductSchema.validate(req.body, { abortEarly: false });
+      createProductSchema.parseAsync({ name, description, price, categoryId, supplierId });
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
     }
@@ -50,21 +50,31 @@ export default class ProductController {
     }
   }
 
-  async findAll(req: Request, res: Response) {
+  async findAll(req: Request, res: Response): Promise<Response> {
     const products = await prisma.produtos.findMany({
       select: {
         id: true,
         name: true,
         description: true,
         price: true,
-        categoryId: true,
-        supplierId: true
+        categorias: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        fornecedores: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       },
     });
     return res.json(products);
   }
 
-  async findById(req: Request, res: Response) {
+  async findById(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
     const product = await prisma.produtos.findUnique({
       where: {
@@ -74,7 +84,7 @@ export default class ProductController {
     return res.json(product);
   }
 
-  async update(req: Request, res: Response) {
+  async update(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
 
     const productNotExists = await prisma.produtos.findUnique({
@@ -91,7 +101,7 @@ export default class ProductController {
     }
 
     try {
-      await updateProductSchema.validate(req.body);
+      await updateProductSchema.parseAsync(req.body);
       const product = await prisma.produtos.update({
         where: {
           id: Number(id),
@@ -101,14 +111,14 @@ export default class ProductController {
 
       return res.json({ message: "Product updated", product });
     } catch (err) {
-      if (err instanceof yup.ValidationError) {
+      if (err instanceof z.ZodError) {
         return res.status(400).json({ errors: err.errors });
       }
       return res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  async delete(req: Request, res: Response) {
+  async delete(req: Request, res: Response): Promise<any> {
     const { id } = req.params;
     try {
       await prisma.produtos.delete({

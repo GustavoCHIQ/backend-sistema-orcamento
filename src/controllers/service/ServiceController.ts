@@ -1,28 +1,28 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import * as yup from 'yup';
+import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-const createServiceSchema = yup.object().shape({
-  name: yup.string().required('Name is required'),
-  description: yup.string().required('Description is required'),
-  price: yup.number().required('Price is required'),
-  categoryId: yup.number().required('Category ID is required'),
+const createServiceSchema = z.object({
+  name: z.string({ required_error: 'Name is required' }),
+  description: z.string({ required_error: 'Description is required' }),
+  price: z.number({ required_error: 'Price is required' }),
+  categoryId: z.number({ required_error: 'Category ID is required' }),
 });
 
-const updateServiceSchema = yup.object().shape({
-  name: yup.string().optional(),
-  description: yup.string().optional(),
-  price: yup.number().optional(),
-  categoryId: yup.number().optional(),
+const updateServiceSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().optional(),
+  price: z.number().optional(),
+  categoryId: z.number().optional(),
 });
 
 export default class ServiceController {
-  async create(req: Request, res: Response) {
+  async create(req: Request, res: Response): Promise<Response> {
+    const { name, description, price, categoryId } = req.body;
     try {
-      const { name, description, price, categoryId } = req.body;
-      await createServiceSchema.validate(req.body, { abortEarly: false });
+      createServiceSchema.parseAsync(req.body);
       const newService = await prisma.servicos.create({
         data: {
           name,
@@ -34,23 +34,25 @@ export default class ServiceController {
 
       return res.status(201).json({ message: 'Service created successfully', service: newService });
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ errors: error.errors });
       }
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
-  async findAll(req: Request, res: Response) {
+  async findAll(req: Request, res: Response): Promise<Response> {
     try {
       const services = await prisma.servicos.findMany();
+
       return res.json(services);
+
     } catch (error) {
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
-  async findById(req: Request, res: Response) {
+  async findById(req: Request, res: Response): Promise<Response> {
     try {
       const { id } = req.params;
       const service = await prisma.servicos.findUnique({
@@ -65,13 +67,12 @@ export default class ServiceController {
     }
   }
 
-  async update(req: Request, res: Response) {
+  async update(req: Request, res: Response): Promise<Response> {
+    const { id } = req.params;
+    const { name, description, price, categoryId } = req.body;
+
     try {
-      const { id } = req.params;
-      const { name, description, price, categoryId } = req.body;
-
-      await updateServiceSchema.validate(req.body, { abortEarly: false });
-
+      updateServiceSchema.parseAsync(req.body);
       const existingService = await prisma.servicos.findUnique({
         where: { id: Number(id) },
       });
@@ -92,17 +93,17 @@ export default class ServiceController {
 
       return res.json({ message: 'Service updated successfully', service: updatedService });
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ errors: error.errors });
       }
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
-  async delete(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
+  async delete(req: Request, res: Response): Promise<any> {
+    const { id } = req.params;
 
+    try {
       const existingService = await prisma.servicos.findUnique({
         where: { id: Number(id) },
       });

@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc -p .",
-    "dev": "npx tsx watch src/index.ts",
+    "dev": "npx tsx --watch src/index.ts",
     "generate": "npm -s run generate:prisma",
     "generate:prisma": "prisma generate"
   },
@@ -26,6 +26,6 @@
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "yup": "^1.4.0"
+    "zod": "^3.23.8"
   }
 }

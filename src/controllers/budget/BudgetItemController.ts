@@ -1,22 +1,22 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import * as yup from 'yup';
+import { z } from 'zod';
 
 const Prisma = new PrismaClient();
 
-const budgetItemSchema = yup.object().shape({
-  budgetId: yup.number().required("Budget ID is required"),
-  productId: yup.number().required("Product ID is required"),
-  serviceId: yup.number().required("Service ID is required"),
-  quantity: yup.number().required("Quantity is required")
+const budgetItemSchema = z.object({
+  budgetId: z.number({ required_error: "Budget ID is required" }),
+  productId: z.number({ required_error: "Product ID is required" }),
+  serviceId: z.number({ required_error: "Service ID is required" }),
+  quantity: z.number({ required_error: "Quantity is required" })
 });
 
-const updateBudgetItemSchema = yup.object().shape({
-  quantity: yup.number().required(),
+const updateBudgetItemSchema = z.object({
+  quantity: z.number({ required_error: "Quantity is required" }),
 });
 
 export default class BudgetItemController {
-  async create(request: Request, response: Response) {
+  async create(request: Request, response: Response): Promise<Response> {
     const { budgetId, productId, serviceId, quantity } = request.body;
 
     if (!productId && !serviceId) {
@@ -36,9 +36,9 @@ export default class BudgetItemController {
     }
 
     try {
-      await budgetItemSchema.validate(request.body);
+      await budgetItemSchema.parseAsync(request.body);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return response.status(400).json({ error: error.errors[0] });
       }
     }
@@ -60,9 +60,9 @@ export default class BudgetItemController {
     const { quantity } = request.body;
 
     try {
-      await updateBudgetItemSchema.validate(request.body);
+      await updateBudgetItemSchema.parseAsync(request.body);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return response.status(400).json({ error: error.errors[0] });
       }
     }

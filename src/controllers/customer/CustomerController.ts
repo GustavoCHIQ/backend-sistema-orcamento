@@ -1,40 +1,39 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import * as yup from 'yup';
+import { z } from 'zod';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const prisma = new PrismaClient();
 
-const createClientSchema = yup.object().shape({
-  name: yup.string().required('Name is required').min(3, 'Name must have at least 3 characters'),
-  email: yup.string().email('Invalid email format').required('Email is required'),
-  phone: yup.string().required('Phone is required'),
-  type: yup.string().optional(),
-  cpfOrCnpj: yup.string().required('CpfOrCnpj is required'),
-  rgOrIe: yup.string().optional(),
-  cityId: yup.number().required('CityId is required'),
-  address: yup.string().required('Address is required')
+const createClientSchema = z.object({
+  name: z.string({ required_error: 'Name is required' }),
+  email: z.string({ required_error: 'Email is required' }).email(),
+  phone: z.string({ required_error: 'Phone is required' }),
+  type: z.string({ required_error: 'Type is required' }),
+  cpfOrCnpj: z.string({ required_error: 'CPF or CNPJ is required' }),
+  rgOrIe: z.string({ required_error: 'RG or IE is required' }),
+  cityId: z.number({ required_error: 'City ID is required' }),
+  address: z.string({ required_error: 'Address is required' })
 });
 
-const updateClientSchema = yup.object().shape({
-  name: yup.string().optional(),
-  email: yup.string().email().optional(),
-  phone: yup.string().optional(),
-  type: yup.string().optional(),
-  cpfOrCnpj: yup.string().optional(),
-  rgOrIe: yup.string().optional(),
-  cityId: yup.number().optional(),
-  address: yup.string().optional()
+const updateClientSchema = z.object({
+  name: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  type: z.string().optional(),
+  cpfOrCnpj: z.string().optional(),
+  rgOrIe: z.string().optional(),
+  cityId: z.number().optional(),
+  address: z.string().optional()
 });
 
 export default class CustomerController {
-  async create(req: Request, res: Response) {
+  async create(req: Request, res: Response): Promise<Response> {
     const { name, email, phone, cpfOrCnpj, rgOrIe, cityId, address } = req.body;
-
     try {
-      await createClientSchema.validate(req.body, { abortEarly: false });
+      createClientSchema.parseAsync(req.body);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
     }
@@ -58,7 +57,7 @@ export default class CustomerController {
     }
   }
 
-  async findAll(req: Request, res: Response) {
+  async findAll(req: Request, res: Response): Promise<Response> {
     try {
       const clients = await prisma.clientes.findMany({
         select: {
@@ -68,8 +67,12 @@ export default class CustomerController {
           phone: true,
           cpfOrCnpj: true,
           rgOrIe: true,
-          cityId: true,
-          address: true
+          cidades: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
         }
       });
       return res.json(clients);
@@ -78,7 +81,7 @@ export default class CustomerController {
     }
   }
 
-  async findById(req: Request, res: Response) {
+  async findById(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
 
     try {
@@ -108,7 +111,7 @@ export default class CustomerController {
     }
   }
 
-  async update(req: Request, res: Response) {
+  async update(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
     const { name, email, phone, cpfOrCnpj, rgOrIe, cityId, address } = req.body;
 
@@ -126,9 +129,9 @@ export default class CustomerController {
     }
 
     try {
-      await updateClientSchema.validate(req.body, { abortEarly: false });
+      await updateClientSchema.parseAsync(req.body);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
     }
@@ -155,11 +158,11 @@ export default class CustomerController {
     }
   }
 
-  async delete(req: Request, res: Response) {
+  async delete(req: Request, res: Response): Promise<any> {
     const { id } = req.params;
 
     try {
-      await prisma.clientes.delete({
+      prisma.clientes.delete({
         where: {
           id: parseInt(id)
         }

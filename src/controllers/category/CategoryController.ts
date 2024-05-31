@@ -1,19 +1,19 @@
 import { Request, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
-import * as yup from 'yup';
+import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-const createCategorySchema = yup.object().shape({
-  name: yup.string().required('Name is required'),
+const createCategorySchema = z.object({
+  name: z.string({ required_error: 'Name is required' }),
 });
 
-const updateCategorySchema = yup.object().shape({
-  name: yup.string().optional(),
+const updateCategorySchema = z.object({
+  name: z.string({ required_error: 'Name is required' })
 });
 
 export default class CategoryController {
-  async create(req: Request, res: Response) {
+  async create(req: Request, res: Response): Promise<Response> {
 
     const categoryAlreadyExists = await prisma.categorias.findFirst({
       where: {
@@ -26,7 +26,7 @@ export default class CategoryController {
     }
 
     try {
-      await createCategorySchema.validate(req.body, { abortEarly: false });
+      await createCategorySchema.parseAsync(req.body);
 
       const { name } = req.body;
       const category = await prisma.categorias.create({
@@ -36,14 +36,14 @@ export default class CategoryController {
       });
       return res.json({ message: "Category created", category });
     } catch (err) {
-      if (err instanceof yup.ValidationError) {
+      if (err instanceof z.ZodError) {
         return res.status(400).json({ errors: err.errors });
       }
       return res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  async findAll(req: Request, res: Response) {
+  async findAll(req: Request, res: Response): Promise<Response> {
     const categories = await prisma.categorias.findMany({
       select: {
         id: true,
@@ -53,7 +53,7 @@ export default class CategoryController {
     return res.json(categories);
   }
 
-  async findById(req: Request, res: Response) {
+  async findById(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
     const category = await prisma.categorias.findUnique({
       where: {
@@ -63,10 +63,10 @@ export default class CategoryController {
     return res.json(category);
   }
 
-  async update(req: Request, res: Response) {
+  async update(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
     try {
-      await updateCategorySchema.validate(req.body, { abortEarly: false });
+      await updateCategorySchema.parseAsync(req.body);
 
       const category = await prisma.categorias.update({
         where: {
@@ -76,14 +76,14 @@ export default class CategoryController {
       });
       return res.json({ message: "Category updated", category });
     } catch (err) {
-      if (err instanceof yup.ValidationError) {
+      if (err instanceof z.ZodError) {
         return res.status(400).json({ errors: err.errors });
       }
       return res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  async delete(req: Request, res: Response) {
+  async delete(req: Request, res: Response): Promise<any> {
     const { id } = req.params;
     try {
       await prisma.categorias.delete({

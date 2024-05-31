@@ -1,31 +1,31 @@
 import { Request, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
-import * as yup from 'yup';
+import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-const createCitySchema = yup.object().shape({
-  name: yup.string().required('Name is required'),
-  state: yup.string().required('State is required'),
-  country: yup.string().required('Country is required'),
-  cep: yup.string().required('Cep is required'),
+const createCitySchema = z.object({
+  name: z.string({ required_error: 'Name is required' }),
+  state: z.string({ required_error: 'State is required' }),
+  country: z.string({ required_error: 'Country is required' }),
+  cep: z.string({ required_error: 'CEP is required' }).min(8),
 });
 
-const updateCitySchema = yup.object().shape({
-  name: yup.string().optional(),
-  state: yup.string().optional(),
-  country: yup.string().optional(),
-  cep: yup.string().optional(),
+const updateCitySchema = z.object({
+  name: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  cep: z.string().optional(),
 });
 
 export default class CityController {
-  async create(req: Request, res: Response) {
+  async create(req: Request, res: Response): Promise<Response> {
     const { name, state, country, cep } = req.body;
 
     try {
-      await createCitySchema.validate(req.body, { abortEarly: false });
+      createCitySchema.parseAsync
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
     }
@@ -46,14 +46,14 @@ export default class CityController {
     }
   }
 
-  async update(req: Request, res: Response) {
+  async update(req: Request, res: Response): Promise<Response> {
     const { name, state, country, cep } = req.body;
     const { id } = req.params;
 
     try {
-      await updateCitySchema.validate(req.body, { abortEarly: false });
+      await updateCitySchema.parseAsync(req.body);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
       }
     }
@@ -77,12 +77,12 @@ export default class CityController {
     }
   }
 
-  async findAll(req: Request, res: Response) {
+  async findAll(req: Request, res: Response): Promise<Response> {
     const cities = await prisma.cidades.findMany();
     return res.json(cities);
   }
 
-  async findById(req: Request, res: Response) {
+  async findById(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
 
     try {
@@ -102,7 +102,7 @@ export default class CityController {
     }
   }
 
-  async delete(req: Request, res: Response) {
+  async delete(req: Request, res: Response): Promise<any> {
     const { id } = req.params;
 
     try {

@@ -7,11 +7,14 @@ import CompanyController from "./controllers/company/CompanyController";
 import CityController from "./controllers/city/CityController";
 import CustomerController from "./controllers/customer/CustomerController";
 import SupplierController from "./controllers/supplier/SupplierController";
+import ServiceController from "./controllers/service/ServiceController";
 const routes = Router();
 
 routes.get("/", (req, res) => {
   res.json({ message: "Hello World" });
 });
+
+routes.post("/company", new CompanyController().create);
 
 // Routes for the Company entity
 routes.post("/company", new CompanyController().create);
@@ -68,5 +71,12 @@ routes.post("/budgets/applydiscount", new BudgetController().applyDiscount);
 routes.get("/budgets", new BudgetController().findAll);
 routes.get("/budgets/:id", new BudgetController().findById);
 routes.patch("/budgets/:id", new BudgetController().approveBudget);
+
+// Routes for the Service entity
+routes.post("/services", new ServiceController().create);
+routes.get("/services", new ServiceController().findAll);
+routes.get("/services/:id", new ServiceController().findById);
+routes.put("/services/:id", new ServiceController().update);
+routes.delete("/services/:id", new ServiceController().delete);
 
 export default routes;

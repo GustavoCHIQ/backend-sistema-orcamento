@@ -71,15 +71,19 @@ model Produtos {
 }
 
 model Servicos {
-  id    Int    @id @default(autoincrement())
-  name  String
-  price Float
+  id          Int        @id @default(autoincrement())
+  name        String
+  description String
+  price       Float
+  categoryId  Int
+  categorias  Categorias @relation(fields: [categoryId], references: [id])
 }
 
 model Categorias {
   id       Int        @id @default(autoincrement())
   name     String
   produtos Produtos[]
+  Servicos Servicos[]
 }
 
 model Fornecedores {

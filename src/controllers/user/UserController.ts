@@ -1,30 +1,31 @@
 import { Request, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
-import * as yup from 'yup';
 import bcrypt from 'bcryptjs';
+import { z } from 'zod';
+
 require('dotenv').config();
 
 const prisma = new PrismaClient();
 
-const createUserSchema = yup.object().shape({
-  name: yup.string().required('Name is required').min(3, 'Name must have at least 3 characters'),
-  email: yup.string().email('Invalid email format').required('Email is required'),
-  password: yup.string().required('Password is required').min(6, 'Password must have at least 6 characters'),
+const createUserSchema = z.object({
+  name: z.string({ required_error: 'Name is required' }).min(3, 'Name must have at least 3 characters'),
+  email: z.string({ required_error: 'Email is required' }).email('Invalid email format'),
+  password: z.string({ required_error: 'Password is required' }).min(6, 'Password must have at least 6 characters')
 });
 
-const updateUserSchema = yup.object().shape({
-  name: yup.string().min(3, 'Name must have at least 3 characters').optional(),
-  email: yup.string().email('Invalid email format').optional(),
+const updateUserSchema = z.object({
+  name: z.string().min(3, 'Name must have at least 3 characters').optional(),
+  email: z.string().email('Invalid email format').optional(),
 });
 
 export default class UserController {
-  async create(req: Request, res: Response) {
+  async create(req: Request, res: Response): Promise<Response> {
     const { name, email, password } = req.body;
 
     try {
-      await createUserSchema.validate({ name, email, password });
+      createUserSchema.parseAsync(req.body);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.message });
       }
     }
@@ -53,7 +54,7 @@ export default class UserController {
     return res.status(201).json({ message: 'User created successfully' });
   }
 
-  async findAll(req: Request, res: Response) {
+  async findAll(req: Request, res: Response): Promise<Response> {
     const users = await prisma.usuarios.findMany({
       select: {
         id: true,
@@ -66,7 +67,7 @@ export default class UserController {
     return res.json(users);
   }
 
-  async findById(req: Request, res: Response) {
+  async findById(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
 
     const user = await prisma.usuarios.findUnique({
@@ -84,7 +85,7 @@ export default class UserController {
     return res.json(user);
   }
 
-  async update(req: Request, res: Response) {
+  async update(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
     const { name, email } = req.body;
 
@@ -102,9 +103,9 @@ export default class UserController {
     }
 
     try {
-      await updateUserSchema.validate({ name, email });
+      await updateUserSchema.parseAsync(req.body);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.message });
       }
     }
@@ -138,7 +139,7 @@ export default class UserController {
     return res.json({ message: 'User updated successfully', user: updatedUser });
   }
 
-  async updatePassword(req: Request, res: Response) {
+  async updatePassword(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
     const { previousPassword, password } = req.body;
 
@@ -178,7 +179,7 @@ export default class UserController {
     return res.json({ message: 'Password updated successfully' });
   }
 
-  async delete(req: Request, res: Response) {
+  async delete(req: Request, res: Response): Promise<any> {
     const { id } = req.params;
 
     const userNotExists = await prisma.usuarios.findUnique({

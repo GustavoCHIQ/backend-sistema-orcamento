@@ -1,37 +1,37 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import * as yup from 'yup';
+import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-const createEmpresaSchema = yup.object().shape({
-  name: yup.string().required(),
-  cnpj: yup.string().required(),
-  phone: yup.string().required(),
-  ie: yup.string().optional(),
-  email: yup.string().email().required(),
-  address: yup.string().required(),
-  city: yup.string().required(),
+const createEmpresaSchema = z.object({
+  name: z.string({ required_error: 'Name is required' }),
+  cnpj: z.string({ required_error: 'CNPJ is required' }),
+  phone: z.string({ required_error: 'Phone is required' }),
+  ie: z.string({ required_error: 'IE is required' }),
+  email: z.string({ required_error: 'Email is required' }).email(),
+  address: z.string({ required_error: 'Address is required' }),
+  city: z.string({ required_error: 'City is required' }),
 });
 
-const updateEmpresaSchema = yup.object().shape({
-  name: yup.string().optional(),
-  cnpj: yup.string().optional(),
-  phone: yup.string().optional(),
-  ie: yup.string().optional(),
-  email: yup.string().email().optional(),
-  address: yup.string().optional(),
-  city: yup.string().optional(),
+const updateEmpresaSchema = z.object({
+  name: z.string().optional(),
+  cnpj: z.string().optional(),
+  phone: z.string().optional(),
+  ie: z.string().optional(),
+  email: z.string().email().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
 });
 
 export default class CompanyController {
-  async create(req: Request, res: Response) {
+  async create(req: Request, res: Response): Promise<Response> {
     const { name, cnpj, phone, ie, email, address, city } = req.body;
 
     try {
-      await createEmpresaSchema.validate({ name, cnpj, phone, ie, email, address, city });
+      createEmpresaSchema.parseAsync(req.body);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.message });
       }
     }
@@ -61,10 +61,10 @@ export default class CompanyController {
     return res.status(201).json({ message: 'Empresa created successfully' });
   }
 
-  async findAll(req: Request, res: Response) {
+  async findAll(req: Request, res: Response): Promise<Response> {
     const empresas = await prisma.empresa.findUnique({
       where: {
-        id: 1,
+        id: 1
       },
     });
 
@@ -75,7 +75,7 @@ export default class CompanyController {
     return res.status(200).json(empresas);
   }
 
-  async update(req: Request, res: Response) {
+  async update(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
     const { name, cnpj, phone, ie, email, address, city } = req.body;
 
@@ -84,9 +84,9 @@ export default class CompanyController {
     }
 
     try {
-      await updateEmpresaSchema.validate({ name, cnpj, phone, ie, email, address, city });
+      await updateEmpresaSchema.parseAsync(req.body);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.message });
       }
     }
