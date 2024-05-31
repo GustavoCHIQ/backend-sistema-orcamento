@@ -1,64 +1,89 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import * as yup from 'yup';
+import { z } from 'zod';
 import utils from '../products/utils';
 
 const prisma = new PrismaClient();
 
-const createBudgetSchema = yup.object().shape({
-  userId: yup.number().required(),
-  clientId: yup.number().required(),
-  totalPrice: yup.number().default(0),
+// Interfaces para tipagem
+interface CreateBudgetData {
+  userId: number;
+  clientId: number;
+  totalPrice?: number;
+}
+
+interface AddItemData {
+  budgetId: number;
+  productId?: number | null;
+  serviceId?: number | null;
+  quantity: number;
+  discount?: number;
+  totalPrice?: number;
+}
+
+interface ApplyDiscountData {
+  budgetId: number;
+  discount: number;
+}
+
+interface UpdateBudgetData {
+  isApproved: boolean;
+}
+
+// Schemas de validação com Zod
+const createBudgetSchema = z.object({
+  userId: z.number(),
+  clientId: z.number(),
+  totalPrice: z.number().optional(),
 });
 
-const addItemSchema = yup.object().shape({
-  budgetId: yup.number().required(),
-  productId: yup.number().nullable(),
-  serviceId: yup.number().nullable(),
-  quantity: yup.number().min(1).required(),
-  discount: yup.number().default(0),
-  totalPrice: yup.number().default(0),
+const addItemSchema = z.object({
+  budgetId: z.number(),
+  productId: z.number().nullable(),
+  serviceId: z.number().nullable(),
+  quantity: z.number().min(1),
+  discount: z.number().default(0),
+  totalPrice: z.number().default(0),
 });
 
-const applyDiscountSchema = yup.object().shape({
-  budgetId: yup.number().required(),
-  discount: yup.number().min(0).required(),
+const applyDiscountSchema = z.object({
+  budgetId: z.number(),
+  discount: z.number().min(0),
 });
 
-const updateBudgetSchema = yup.object().shape({
-  isApproved: yup.boolean().required("Status is required"),
+const updateBudgetSchema = z.object({
+  isApproved: z.boolean({ required_error: 'Approved is required' }),
 });
 
 export default class BudgetController {
-
-  // Method to create a budget
-  async createBudget(req: Request, res: Response) {
+  async createBudget(req: Request, res: Response): Promise<Response> {
     try {
-      await createBudgetSchema.validate(req.body);
-      const { userId, clientId, discount } = req.body;
+      createBudgetSchema.parseAsync(req.body);
+      const { userId, clientId, totalPrice = 0 }: CreateBudgetData = req.body;
 
       const newBudget = await prisma.orcamentos.create({
         data: {
           userId,
           clientId,
-          totalPrice: 0, // Inicialmente 0, será calculado ao adicionar itens
-          discount,
+          totalPrice, // Inicialmente 0, será calculado ao adicionar itens
+          discount: 0, // Inicialmente 0, pode ser atualizado posteriormente
         },
       });
 
       return res.status(201).json(newBudget);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
-        return res.status(400).json({ error: error.message });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
       }
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   // Method to add an item to a budget
-  async addItem(req: Request, res: Response) {
+  async addItem(req: Request, res: Response): Promise<Response> {
     try {
-      await addItemSchema.validate(req.body);
-      const { budgetId, productId, serviceId, quantity, discount } = req.body;
+      await addItemSchema.parseAsync(req.body);
+      const { budgetId, productId, serviceId, quantity, discount = 0 }: AddItemData = req.body;
 
       const itemPrice = await utils.getItemPrice(productId, serviceId);
       const totalItemPrice = (itemPrice * quantity) * (1 - discount / 100);
@@ -79,24 +104,25 @@ export default class BudgetController {
 
       return res.status(201).json(newItem);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.message });
       }
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   // Method to apply a discount to a budget
-  async applyDiscount(req: Request, res: Response) {
+  async applyDiscount(req: Request, res: Response): Promise<Response> {
     try {
-      await applyDiscountSchema.validate(req.body);
-      const { budgetId, discount } = req.body;
+      await applyDiscountSchema.parseAsync(req.body);
+      const { budgetId, discount }: ApplyDiscountData = req.body;
 
       await prisma.orcamentos.update({
         where: {
-          id: budgetId
+          id: budgetId,
         },
         data: {
-          discount
+          discount,
         },
       });
 
@@ -105,88 +131,113 @@ export default class BudgetController {
 
       return res.status(200).json({ message: 'Discount applied successfully' });
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.message });
       }
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   // Method to list all budgets and their items
-  async findAll(req: Request, res: Response) {
-    const budgets = await prisma.orcamentos.findMany({
-      select: {
-        id: true, userId: true, clientId: true, totalPrice: true, discount: true, createdAt: true,
-        items: {
-          select: {
-            id: true, productId: true, serviceId: true, quantity: true, discount: true, totalPrice: true,
-            produtos: {
-              select: { id: true, name: true, price: true },
-            },
-          },
-        },
-      },
-    });
-
-    return res.status(200).json(budgets);
-  }
-
-  // Method to find a budget by id
-  async findById(req: Request, res: Response) {
-    const { id } = req.params;
-    const budget = await prisma.orcamentos.findUnique({
-      where: {
-        id: Number(id)
-      },
-      select: {
-        id: true, userId: true, clientId: true, totalPrice: true, discount: true, createdAt: true,
-        items: {
-          select: {
-            id: true,
-            productId: true,
-            serviceId: true,
-            quantity: true,
-            discount: true,
-            totalPrice: true,
-            produtos: {
-              select: {
-                id: true,
-                name: true,
-                price: true,
+  async findAll(req: Request, res: Response): Promise<Response> {
+    try {
+      const budgets = await prisma.orcamentos.findMany({
+        select: {
+          id: true,
+          userId: true,
+          clientId: true,
+          totalPrice: true,
+          discount: true,
+          createdAt: true,
+          items: {
+            select: {
+              id: true,
+              productId: true,
+              serviceId: true,
+              quantity: true,
+              discount: true,
+              totalPrice: true,
+              produtos: {
+                select: { id: true, name: true, price: true },
               },
             },
           },
         },
-      },
-    });
+      });
 
-    if (!budget) {
-      return res.status(404).json({ error: 'Budget not found' });
+      return res.status(200).json(budgets);
+    } catch (error) {
+      return res.status(500).json({ error: 'Internal server error' });
     }
+  }
 
-    return res.status(200).json(budget);
+  // Method to find a budget by id
+  async findById(req: Request, res: Response): Promise<Response> {
+    const { id } = req.params;
+    try {
+      const budget = await prisma.orcamentos.findUnique({
+        where: {
+          id: Number(id),
+        },
+        select: {
+          id: true,
+          userId: true,
+          clientId: true,
+          totalPrice: true,
+          discount: true,
+          createdAt: true,
+          items: {
+            select: {
+              id: true,
+              productId: true,
+              serviceId: true,
+              quantity: true,
+              discount: true,
+              totalPrice: true,
+              produtos: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!budget) {
+        return res.status(404).json({ error: 'Budget not found' });
+      }
+
+      return res.status(200).json(budget);
+    } catch (error) {
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   }
 
   // Method to update a budget
-  async approveBudget(req: Request, res: Response) {
+  async approveBudget(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
-    const { status } = req.body;
+    const { isApproved }: UpdateBudgetData = req.body;
 
     try {
-      await updateBudgetSchema.validate({ isApproved: status });
+      await updateBudgetSchema.parseAsync(req.body);
       const budget = await prisma.orcamentos.update({
         where: {
-          id: Number(id)
+          id: Number(id),
         },
         data: {
-          isApproved: status
+          isApproved,
         },
       });
 
       return res.status(200).json(budget);
     } catch (error) {
-      if (error instanceof yup.ValidationError) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.message });
       }
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 }
