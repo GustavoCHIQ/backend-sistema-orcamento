@@ -4,3 +4,4 @@ tsconfig.json
 # Keep environment variables out of version control
 .env
 prisma/migrations
+dist
