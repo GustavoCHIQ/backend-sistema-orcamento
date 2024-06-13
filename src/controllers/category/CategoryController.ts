@@ -1,46 +1,25 @@
 import { Request, Response } from 'express';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-const createCategorySchema = z.object({
-  name: z.string({ required_error: 'Name is required' }),
-});
-
-const updateCategorySchema = z.object({
-  name: z.string({ required_error: 'Name is required' })
-});
-
 export default class CategoryController {
   async create(req: Request, res: Response): Promise<Response> {
-
-    const categoryAlreadyExists = await prisma.categorias.findFirst({
-      where: {
-        name: req.body.name,
-      },
+    const createCategorySchema = z.object({
+      name: z.string({ required_error: 'Name is required' }),
     });
 
-    if (categoryAlreadyExists) {
-      return res.status(400).json({ error: 'Category already exists' });
-    }
-
     try {
-      await createCategorySchema.parseAsync(req.body);
-
-      const { name } = req.body;
-      const category = await prisma.categorias.create({
-        data: {
-          name,
-        },
+      const data = createCategorySchema.parse(req.body);
+      await prisma.categorias.create({
+        data,
       });
-      return res.json({ message: "Category created", category });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ errors: err.errors });
-      }
-      return res.status(500).json({ error: "Internal server error" });
+    } catch (error) {
+      return res.status(400).json({ error: 'Error to create category' });
     }
+
+    return res.status(201);
   }
 
   async findAll(req: Request, res: Response): Promise<Response> {
@@ -65,21 +44,21 @@ export default class CategoryController {
 
   async update(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
-    try {
-      await updateCategorySchema.parseAsync(req.body);
+    const updateCategorySchema = z.object({
+      name: z.string().optional(),
+    });
 
-      const category = await prisma.categorias.update({
+    const data = updateCategorySchema.parse(req.body);
+    try {
+      await prisma.categorias.update({
         where: {
           id: Number(id),
         },
-        data: req.body,
+        data,
       });
-      return res.json({ message: "Category updated", category });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ errors: err.errors });
-      }
-      return res.status(500).json({ error: "Internal server error" });
+      return res.status(204).send();
+    } catch (error) {
+      return res.status(400).json({ error: 'Error to update category' });
     }
   }
 
@@ -91,15 +70,9 @@ export default class CategoryController {
           id: Number(id),
         },
       });
-      return res.json({ message: "Category deleted" });
+      return res.status(204).send();
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        if (err.code === 'P2025') {
-          return res.status(404).json({ error: 'Category not found' });
-        } else if (err.code === 'P2003') {
-          return res.status(400).json({ error: 'Category has dependencies' });
-        }
-      }
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 }

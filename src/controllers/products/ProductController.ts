@@ -1,52 +1,28 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const prisma = new PrismaClient();
 
-const createProductSchema = z.object({
-  name: z.string({ required_error: 'Name is required' }),
-  description: z.string({ required_error: 'Description is required' }),
-  price: z.number({ required_error: 'Price is required' }),
-  categoryId: z.number({ required_error: 'Category ID is required' }),
-  supplierId: z.number({ required_error: 'Supplier ID is required' })
-});
-
-const updateProductSchema = z.object({
-  name: z.string().optional(),
-  description: z.string().optional(),
-  price: z.number().optional(),
-  categoryId: z.number().optional(),
-  supplierId: z.number().optional()
-});
-
 export default class ProductController {
   async create(req: Request, res: Response): Promise<Response> {
-    const { name, description, price, categoryId, supplierId } = req.body;
+    const createProductSchema = z.object({
+      name: z.string({ required_error: 'Name is required' }),
+      description: z.string({ required_error: 'Description is required' }),
+      price: z.number({ required_error: 'Price is required' }),
+      categoryId: z.number({ required_error: 'Category ID is required' }),
+      supplierId: z.number({ required_error: 'Supplier ID is required' })
+    });
 
     try {
-      createProductSchema.parseAsync({ name, description, price, categoryId, supplierId });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-    }
-
-    try {
-      const product = await prisma.produtos.create({
-        data: {
-          name,
-          description,
-          price,
-          categoryId,
-          supplierId
-        }
+      const data = createProductSchema.parse(req.body);
+      await prisma.produtos.create({
+        data,
       });
 
-      return res.json(product);
+      return res.status(201).send();
     } catch (error) {
-      return res.status(400).json({ 'Error creating product': error });
+      return res.status(400).json({ error: 'Error creating product' });
     }
   }
 
@@ -87,34 +63,25 @@ export default class ProductController {
   async update(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
 
-    const productNotExists = await prisma.produtos.findUnique({
-      where: {
-        id: Number(id),
-      },
-      select: {
-        id: true,
-      },
+    const updateProductSchema = z.object({
+      name: z.string().optional(),
+      description: z.string().optional(),
+      price: z.number().optional(),
+      categoryId: z.number().optional(),
+      supplierId: z.number().optional()
     });
 
-    if (id !== productNotExists?.id.toString()) {
-      return res.status(404).json({ error: "Product not found" });
-    }
-
     try {
-      await updateProductSchema.parseAsync(req.body);
-      const product = await prisma.produtos.update({
+      const data = updateProductSchema.parse(req.body);
+      await prisma.produtos.update({
         where: {
           id: Number(id),
         },
-        data: req.body,
+        data,
       });
-
-      return res.json({ message: "Product updated", product });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ errors: err.errors });
-      }
-      return res.status(500).json({ error: "Internal server error" });
+      return res.status(204).send();
+    } catch (error) {
+      return res.status(400).json({ error: 'Error updating product' });
     }
   }
 
@@ -129,14 +96,7 @@ export default class ProductController {
 
       return res.json({ message: "Product deleted" });
     } catch (err) {
-      if (err instanceof PrismaClientKnownRequestError) {
-        if (err.code === 'P2025') {
-          return res.status(404).json({ error: "Product not found" });
-        } else if (err.code === 'P2003') {
-          return res.status(400).json({ error: "Product has dependencies" });
-        }
-      }
-      return res.status(500).json({ error: "Internal server error" });
+      return res.status(400).json({ error: 'Error deleting product' });
     }
   }
 }

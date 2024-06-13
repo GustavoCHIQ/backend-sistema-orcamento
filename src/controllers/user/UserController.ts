@@ -7,51 +7,30 @@ require('dotenv').config();
 
 const prisma = new PrismaClient();
 
-const createUserSchema = z.object({
-  name: z.string({ required_error: 'Name is required' }).min(3, 'Name must have at least 3 characters'),
-  email: z.string({ required_error: 'Email is required' }).email('Invalid email format'),
-  password: z.string({ required_error: 'Password is required' }).min(6, 'Password must have at least 6 characters')
-});
-
-const updateUserSchema = z.object({
-  name: z.string().min(3, 'Name must have at least 3 characters').optional(),
-  email: z.string().email('Invalid email format').optional(),
-});
-
 export default class UserController {
   async create(req: Request, res: Response): Promise<Response> {
-    const { name, email, password } = req.body;
+    const createUserSchema = z.object({
+      name: z.string({ required_error: 'Name is required' }).min(3, 'Name must have at least 3 characters'),
+      email: z.string({ required_error: 'Email is required' }).email('Invalid email format'),
+      password: z.string({ required_error: 'Password is required' }).min(6, 'Password must have at least 6 characters')
+    });
 
     try {
-      createUserSchema.parseAsync(req.body);
+      const data = createUserSchema.parse(req.body);
+      const hashedPassword = await bcrypt.hash(data.password, 8);
+
+      await prisma.usuarios.create({
+        data: {
+          name: data.name,
+          email: data.email,
+          password: hashedPassword,
+        },
+      });
+
+      return res.status(201).send();
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.message });
-      }
+      return res.status(400).json({ error: 'Error creating user' });
     }
-
-    const userExists = await prisma.usuarios.findFirst({
-      where: {
-        email,
-      },
-    });
-
-    if (userExists) {
-      return res.status(400).json({ error: 'User already exists' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 8);
-
-    const user = await prisma.usuarios.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
-    });
-
-    // Return message to inform that the user was created
-    return res.status(201).json({ message: 'User created successfully' });
   }
 
   async findAll(req: Request, res: Response): Promise<Response> {
@@ -86,57 +65,25 @@ export default class UserController {
   }
 
   async update(req: Request, res: Response): Promise<Response> {
-    const { id } = req.params;
-    const { name, email } = req.body;
-
-    const userNotExists = await prisma.usuarios.findUnique({
-      where: {
-        id: Number(id),
-      },
-      select: {
-        id: true,
-      }
+    const updateUserSchema = z.object({
+      name: z.string().min(3, 'Name must have at least 3 characters').optional(),
+      email: z.string().email('Invalid email format').optional(),
     });
-
-    if (id !== userNotExists?.id.toString()) {
-      return res.status(404).json({ error: 'User not found' });
-    }
 
     try {
-      await updateUserSchema.parseAsync(req.body);
+      const { id } = req.params;
+      const data = updateUserSchema.parse(req.body);
+
+      await prisma.usuarios.update({
+        where: {
+          id: Number(id),
+        },
+        data,
+      });
+      return res.send();
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.message });
-      }
+      return res.status(400).json({ error: 'Error updating user' });
     }
-
-    const user = await prisma.usuarios.findUnique({
-      where: {
-        id: Number(id),
-      },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const updatedUser = await prisma.usuarios.update({
-      where: {
-        id: Number(id),
-      },
-      data: {
-        name,
-        email,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        updatedAt: true,
-      }
-    });
-
-    return res.json({ message: 'User updated successfully', user: updatedUser });
   }
 
   async updatePassword(req: Request, res: Response): Promise<Response> {
@@ -202,15 +149,9 @@ export default class UserController {
         },
       });
 
-      return res.json({ message: 'User deleted successfully' });
+      return res.status(204).send();
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2025') {
-          return res.status(404).json({ error: 'User not found' });
-        } else if (error.code === 'P2023') {
-          return res.status(400).json({ error: 'User cannot be deleted' });
-        }
-      }
+      return res.status(400).json({ error: 'Error deleting user' });
     }
   }
 }

@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import utils from '../products/utils';
-
 const prisma = new PrismaClient();
 
 // Interfaces para tipagem
@@ -11,6 +10,7 @@ interface CreateBudgetData {
   clientId: number;
   totalPrice?: number;
 }
+
 
 interface AddItemData {
   budgetId: number;
@@ -65,17 +65,14 @@ export default class BudgetController {
         data: {
           userId,
           clientId,
-          totalPrice, // Inicialmente 0, será calculado ao adicionar itens
+          totalPrice,
           discount: 0, // Inicialmente 0, pode ser atualizado posteriormente
         },
       });
 
-      return res.status(201).json(newBudget);
+      return res.status(201).send();
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(400).json({ error: 'Error creating budget' });
     }
   }
 
@@ -102,12 +99,9 @@ export default class BudgetController {
       // Recalcular o preço total do orçamento
       await utils.recalculateBudgetTotal(budgetId);
 
-      return res.status(201).json(newItem);
+      return res.status(201).send();
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.message });
-      }
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(400).json({ error: 'Error adding item to budget' });
     }
   }
 
@@ -129,12 +123,9 @@ export default class BudgetController {
       // Recalcular o preço total do orçamento
       await utils.recalculateBudgetTotal(budgetId);
 
-      return res.status(200).json({ message: 'Discount applied successfully' });
+      return res.status(200).send();
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.message });
-      }
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(400).json({ error: 'Error applying discount' });
     }
   }
 
@@ -232,12 +223,9 @@ export default class BudgetController {
         },
       });
 
-      return res.status(200).json(budget);
+      return res.status(200).send();
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.message });
-      }
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(400).json({ error: 'Error updating budget' });
     }
   }
 }

@@ -2,43 +2,27 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-
 const prisma = new PrismaClient();
-
-const createSupplierSchema = z.object({
-  name: z.string({ required_error: 'Name is required' }),
-  contactInfo: z.string({ required_error: 'Contact info is required' }),
-  email: z.string({ required_error: 'Email is required' }).email(),
-  cnpj: z.string({ required_error: 'CNPJ is required' })
-});
-
-const updateSupplierSchema = z.object({
-  name: z.string().optional(),
-  contactInfo: z.string().optional(),
-  email: z.string().email().optional(),
-  cnpj: z.string().optional()
-});
 
 export default class SupplierController {
   async create(req: Request, res: Response): Promise<Response> {
-    const { name, contactInfo, email, cnpj } = req.body;
+
+    const createSupplierSchema = z.object({
+      name: z.string({ required_error: 'Name is required' }),
+      contactInfo: z.string({ required_error: 'Contact info is required' }),
+      email: z.string({ required_error: 'Email is required' }).email(),
+      cnpj: z.string({ required_error: 'CNPJ is required' })
+    });
+
     try {
-      createSupplierSchema.parseAsync(req.body);
-      const supplier = await prisma.fornecedores.create({
-        data: {
-          name,
-          contactInfo,
-          email,
-          cnpj
-        },
+      const data = createSupplierSchema.parse(req.body);
+      await prisma.fornecedores.create({
+        data,
       });
-      return res.json({ message: "Supplier created", supplier });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ errors: err.errors });
-      }
-      return res.status(500).json({ error: "Internal server error" });
+
+      return res.status(201).send();
+    } catch (error) {
+      return res.status(400).json({ error: 'Error creating supplier' });
     }
   }
 
@@ -66,36 +50,27 @@ export default class SupplierController {
   }
 
   async update(req: Request, res: Response): Promise<Response> {
-    const { id } = req.params;
 
-    const supplierNotExists = await prisma.fornecedores.findUnique({
-      where: {
-        id: Number(id),
-      },
-      select: {
-        id: true,
-      },
+    const updateSupplierSchema = z.object({
+      name: z.string().optional(),
+      contactInfo: z.string().optional(),
+      email: z.string().email().optional(),
+      cnpj: z.string().optional()
     });
 
-    if (id !== supplierNotExists?.id.toString()) {
-      return res.status(404).json({ error: "Supplier not found" });
-    }
-
     try {
-      await updateSupplierSchema.parseAsync(req.body);
-
-      const supplier = await prisma.fornecedores.update({
+      const { id } = req.params;
+      const data = updateSupplierSchema.parse(req.body);
+      await prisma.fornecedores.update({
         where: {
           id: Number(id),
         },
-        data: req.body,
+        data,
       });
-      return res.json({ message: "Supplier updated", supplier });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ errors: err.errors });
-      }
-      return res.status(500).json({ error: "Internal server error" });
+
+      return res.send();
+    } catch (error) {
+      return res.status(400).json({ error: 'Error updating supplier' });
     }
   }
 
@@ -111,13 +86,7 @@ export default class SupplierController {
 
       return res.json({ message: "Supplier deleted" });
     } catch (err) {
-      if (err instanceof PrismaClientKnownRequestError) {
-        if (err.code === 'P2025') {
-          return res.status(404).json({ error: 'Supplier not found' });
-        } else if (err.code === 'P2003') {
-          return res.status(400).json({ error: 'Supplier has products associated' });
-        }
-      }
+      return res.status(400).json({ error: 'Error deleting supplier' });
     }
   }
 }

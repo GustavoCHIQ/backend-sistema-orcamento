@@ -1,77 +1,50 @@
 import { Request, Response } from 'express';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-const createCitySchema = z.object({
-  name: z.string({ required_error: 'Name is required' }),
-  state: z.string({ required_error: 'State is required' }),
-  country: z.string({ required_error: 'Country is required' }),
-  cep: z.string({ required_error: 'CEP is required' }).min(8),
-});
-
-const updateCitySchema = z.object({
-  name: z.string().optional(),
-  state: z.string().optional(),
-  country: z.string().optional(),
-  cep: z.string().optional(),
-});
-
 export default class CityController {
   async create(req: Request, res: Response): Promise<Response> {
-    const { name, state, country, cep } = req.body;
+    const createCitySchema = z.object({
+      name: z.string({ required_error: 'Name is required' }),
+      state: z.string({ required_error: 'State is required' }),
+      country: z.string({ required_error: 'Country is required' }),
+      cep: z.string({ required_error: 'CEP is required' }).min(8),
+    });
 
     try {
-      createCitySchema.parseAsync
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-    }
-
-    try {
-      const city = await prisma.cidades.create({
-        data: {
-          name,
-          state,
-          country,
-          cep
-        }
+      const data = createCitySchema.parse(req.body);
+      await prisma.cidades.create({
+        data,
       });
 
-      return res.json({ "message": "City created with success" });
+      return res.status(201).send();
     } catch (error) {
       return res.status(400).json({ error: 'Error to create city' });
     }
   }
 
   async update(req: Request, res: Response): Promise<Response> {
-    const { name, state, country, cep } = req.body;
     const { id } = req.params;
 
-    try {
-      await updateCitySchema.parseAsync(req.body);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-    }
+    const updateCitySchema = z.object({
+      name: z.string().optional(),
+      state: z.string().optional(),
+      country: z.string().optional(),
+      cep: z.string().optional(),
+    });
+
+    const data = updateCitySchema.parse(req.body);
 
     try {
-      const city = await prisma.cidades.update({
+      await prisma.cidades.update({
         where: {
-          id: Number(id)
+          id: Number(id),
         },
-        data: {
-          name,
-          state,
-          country,
-          cep
-        }
+        data,
       });
-
-      return res.json({ "message": "City updated with success" });
+      return res.status(204).send();
     } catch (error) {
       return res.status(400).json({ error: 'Error to update city' });
     }
@@ -112,15 +85,9 @@ export default class CityController {
         }
       });
 
-      return res.json({ "message": "City deleted with success" });
+      return res.status(204).send();
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2025') {
-          return res.status(400).json({ error: 'City not found' });
-        } else if (error.code === 'P2003') {
-          return res.status(400).json({ error: 'City has a relationship' });
-        }
-      }
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 }
