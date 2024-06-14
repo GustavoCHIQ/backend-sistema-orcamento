@@ -14,7 +14,7 @@ Bem-vindo ao repositório do backend do Sistema de Criação de Orçamentos! Est
 
 1. Clone o repositório:
     ```bash
-    git clone https://github.com/seu-usuario/sistema-orcamentos-backend.git
+    git clone https://github.com/GustavoCHIQ/backend-sistema-orcamento.git
     ```
 2. Navegue até o diretório do projeto:
     ```bash
@@ -26,7 +26,7 @@ Bem-vindo ao repositório do backend do Sistema de Criação de Orçamentos! Est
     ```
 4. Configure o banco de dados no arquivo `.env`:
     ```env
-    DATABASE_URL="seu_url_do_banco_de_dados"
+    DATABASE_URL=postgres://YourUserName:YourPassword@YourHostname:5432/YourDatabaseName
     ```
 5. Execute as migrações do banco de dados:
     ```bash
