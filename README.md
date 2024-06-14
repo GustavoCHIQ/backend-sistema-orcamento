@@ -9,7 +9,6 @@ Bem-vindo ao repositório do backend do Sistema de Criação de Orçamentos! Est
 - [Rotas Disponíveis](#rotas-disponíveis)
 - [Dependências](#dependências)
 - [Contribuição](#contribuição)
-- [Licença](#licença)
 
 ## Instalação
 
@@ -131,11 +130,3 @@ Contribuições são bem-vindas! Sinta-se à vontade para abrir issues e pull re
 3. Faça suas alterações e commit (`git commit -am 'Adiciona nova feature'`).
 4. Faça o push para a branch (`git push origin feature/nova-feature`).
 5. Abra um Pull Request.
-
-## Licença
-
-Este projeto está licenciado sob a Licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
-
----
-
-Sinta-se à vontade para adaptar este README conforme necessário para refletir as especificidades do seu projeto!
