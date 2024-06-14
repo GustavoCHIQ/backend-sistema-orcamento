@@ -5,3 +5,4 @@ tsconfig.json
 .env
 prisma/migrations
 dist
+.vscode
