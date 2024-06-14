@@ -8,13 +8,9 @@ import CityController from "./controllers/city/CityController";
 import CustomerController from "./controllers/customer/CustomerController";
 import SupplierController from "./controllers/supplier/SupplierController";
 import ServiceController from "./controllers/service/ServiceController";
-const routes = Router();
-
-routes.get("/", (req, res) => {
-  res.json({ message: "Hello World" });
+const routes = Router({
+  strict: true
 });
-
-routes.post("/company", new CompanyController().create);
 
 // Routes for the Company entity
 routes.post("/company", new CompanyController().create);
@@ -78,5 +74,13 @@ routes.get("/services", new ServiceController().findAll);
 routes.get("/services/:id", new ServiceController().findById);
 routes.put("/services/:id", new ServiceController().update);
 routes.delete("/services/:id", new ServiceController().delete);
+
+routes.get("/", (req, res) => {
+  res.status(200).json({ message: "All Rights Reserved - 2024" });
+});
+
+// default route if cannot find any route
+routes.get("*", (req, res) => { res.status(404).json({ message: "This page does not exist" }); });
+
 
 export default routes;
