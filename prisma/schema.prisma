@@ -15,8 +15,7 @@ model Empresa {
   ie        String   @db.VarChar(20)
   email     String   @db.VarChar(60)
   address   String   @db.VarChar(255)
-  pngLogo   String?  @db.VarChar(255)
-  // field opcional
+  pngLogo   String?  @default("http://placehold.it/100x100") @db.VarChar(255)
   city      String   @db.VarChar(30)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

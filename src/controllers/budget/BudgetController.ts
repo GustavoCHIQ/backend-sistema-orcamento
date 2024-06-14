@@ -32,16 +32,16 @@ interface UpdateBudgetData {
 
 // Schemas de validação com Zod
 const createBudgetSchema = z.object({
-  userId: z.number(),
-  clientId: z.number(),
+  userId: z.number({ required_error: 'User ID is required' }).min(1),
+  clientId: z.number({ required_error: 'Client ID is required' }).min(1),
   totalPrice: z.number().optional(),
 });
 
 const addItemSchema = z.object({
-  budgetId: z.number(),
-  productId: z.number().nullable(),
-  serviceId: z.number().nullable(),
-  quantity: z.number().min(1),
+  budgetId: z.number({ required_error: 'Budget ID is required' }),
+  productId: z.number({ required_error: 'Product ID is required' }).nullable(),
+  serviceId: z.number({ required_error: 'Service ID is required' }).nullable(),
+  quantity: z.number({ required_error: 'Quantity is required' }).min(1),
   discount: z.number().default(0),
   totalPrice: z.number().default(0),
 });
@@ -58,7 +58,7 @@ const updateBudgetSchema = z.object({
 export default class BudgetController {
   async createBudget(req: Request, res: Response): Promise<Response> {
     try {
-      createBudgetSchema.parseAsync(req.body);
+      createBudgetSchema.parse(req.body);
       const { userId, clientId, totalPrice = 0 }: CreateBudgetData = req.body;
 
       const newBudget = await prisma.orcamentos.create({
@@ -79,7 +79,7 @@ export default class BudgetController {
   // Method to add an item to a budget
   async addItem(req: Request, res: Response): Promise<Response> {
     try {
-      await addItemSchema.parseAsync(req.body);
+      await addItemSchema.parse(req.body);
       const { budgetId, productId, serviceId, quantity, discount = 0 }: AddItemData = req.body;
 
       const itemPrice = await utils.getItemPrice(productId, serviceId);
@@ -108,7 +108,7 @@ export default class BudgetController {
   // Method to apply a discount to a budget
   async applyDiscount(req: Request, res: Response): Promise<Response> {
     try {
-      await applyDiscountSchema.parseAsync(req.body);
+      await applyDiscountSchema.parse(req.body);
       const { budgetId, discount }: ApplyDiscountData = req.body;
 
       await prisma.orcamentos.update({
@@ -125,7 +125,7 @@ export default class BudgetController {
 
       return res.status(200).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error applying discount' });
+      return res.status(400).json(error);
     }
   }
 
@@ -213,7 +213,7 @@ export default class BudgetController {
     const { isApproved }: UpdateBudgetData = req.body;
 
     try {
-      await updateBudgetSchema.parseAsync(req.body);
+      await updateBudgetSchema.parse(req.body);
       const budget = await prisma.orcamentos.update({
         where: {
           id: Number(id),
@@ -225,7 +225,7 @@ export default class BudgetController {
 
       return res.status(200).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error updating budget' });
+      return res.status(400).json(error);
     }
   }
 }

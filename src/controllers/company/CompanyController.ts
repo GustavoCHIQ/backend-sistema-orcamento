@@ -11,21 +11,26 @@ export default class CompanyController {
       cnpj: z.string({ required_error: 'CNPJ is required' }),
       phone: z.string({ required_error: 'Phone is required' }),
       ie: z.string({ required_error: 'IE is required' }),
+      pngLogo: z.string().optional(),
       email: z.string({ required_error: 'Email is required' }).email(),
-      address: z.string({ required_error: 'Address is required' }),
-      city: z.string({ required_error: 'City is required' }),
+      address: z.string({ required_error: 'Address is required' }).min(1, { message: 'Address is required' }),
+      city: z.string({ required_error: 'City is required' }).min(1, { message: 'City is required' }),
     });
 
-    const data = createEmpresaSchema.parse(req.body);
 
     try {
+      const data = createEmpresaSchema.parse(req.body);
       await prisma.empresa.create({
         data,
       });
 
       return res.status(201).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error to create company' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      } else {
+        return res.status(400).json({ error: 'Error to create company' });
+      }
     }
   }
 
@@ -50,6 +55,7 @@ export default class CompanyController {
       cnpj: z.string().optional(),
       phone: z.string().optional(),
       ie: z.string().optional(),
+      pngLogo: z.string().optional(),
       email: z.string().email().optional(),
       address: z.string().optional(),
       city: z.string().optional(),

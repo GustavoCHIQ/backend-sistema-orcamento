@@ -36,7 +36,7 @@ export default class BudgetItemController {
     }
 
     try {
-      await budgetItemSchema.parseAsync(request.body);
+      await budgetItemSchema.parse(request.body);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return response.status(400).json({ error: error.errors[0] });
@@ -60,7 +60,7 @@ export default class BudgetItemController {
     const { quantity } = request.body;
 
     try {
-      await updateBudgetItemSchema.parseAsync(request.body);
+      await updateBudgetItemSchema.parse(request.body);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return response.status(400).json({ error: error.errors[0] });
