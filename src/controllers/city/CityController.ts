@@ -1,11 +1,12 @@
-import { Request, Response } from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { Params } from '../../utils/types';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-export default class CityController {
-  async create(req: Request, res: Response): Promise<Response> {
+export default new class CityController {
+  async create(req: FastifyRequest, reply: FastifyReply): Promise<any> {
     const createCitySchema = z.object({
       name: z.string({ required_error: 'Name is required' }),
       state: z.string({ required_error: 'State is required' }),
@@ -19,13 +20,13 @@ export default class CityController {
         data,
       });
 
-      return res.status(201).send();
+      return reply.status(201).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error to create city' });
+      return reply.status(400).send({ error: 'Error to create city' });
     }
   }
 
-  async update(req: Request, res: Response): Promise<Response> {
+  async update(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
 
     const updateCitySchema = z.object({
@@ -44,18 +45,18 @@ export default class CityController {
         },
         data,
       });
-      return res.status(204).send();
+      return reply.status(204).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error to update city' });
+      return reply.status(400).send({ error: 'Error to update city' });
     }
   }
 
-  async findAll(req: Request, res: Response): Promise<Response> {
+  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
     const cities = await prisma.cidades.findMany();
-    return res.json(cities);
+    return reply.send(cities);
   }
 
-  async findById(req: Request, res: Response): Promise<Response> {
+  async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
 
     try {
@@ -66,16 +67,16 @@ export default class CityController {
       });
 
       if (!city) {
-        return res.status(404).json({ error: 'City not found' });
+        return reply.status(404).send({ error: 'City not found' });
       }
 
-      return res.json(city);
+      return reply.send(city);
     } catch (error) {
-      return res.status(400).json({ error: 'Error to find city' });
+      return reply.status(400).send({ error: 'Error to find city' });
     }
   }
 
-  async delete(req: Request, res: Response): Promise<any> {
+  async delete(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
 
     try {
@@ -85,9 +86,9 @@ export default class CityController {
         }
       });
 
-      return res.status(204).send();
+      return reply.status(204).send();
     } catch (error) {
-      return res.status(500).json({ error: 'Internal server error' });
+      return reply.status(500).send({ error: 'Internal server error' });
     }
   }
 }

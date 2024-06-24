@@ -1,11 +1,12 @@
-import { Request, Response } from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { Params } from '../../utils/types';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-export default class SupplierController {
-  async create(req: Request, res: Response): Promise<Response> {
+export default new class SupplierController {
+  async create(req: FastifyRequest, reply: FastifyReply): Promise<any> {
 
     const createSupplierSchema = z.object({
       name: z.string({ required_error: 'Name is required' }),
@@ -20,13 +21,13 @@ export default class SupplierController {
         data,
       });
 
-      return res.status(201).send();
+      return reply.status(201).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error creating supplier' });
+      return reply.status(400).send({ error: 'Error creating supplier' });
     }
   }
 
-  async findAll(req: Request, res: Response): Promise<Response> {
+  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
     const suppliers = await prisma.fornecedores.findMany({
       select: {
         id: true,
@@ -35,10 +36,10 @@ export default class SupplierController {
         email: true,
       },
     });
-    return res.json(suppliers);
+    return reply.send(suppliers);
   }
 
-  async findById(req: Request, res: Response): Promise<Response> {
+  async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
 
     const supplier = await prisma.fornecedores.findUnique({
@@ -46,10 +47,10 @@ export default class SupplierController {
         id: Number(id),
       },
     });
-    return res.json(supplier);
+    return reply.send(supplier);
   }
 
-  async update(req: Request, res: Response): Promise<Response> {
+  async update(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
 
     const updateSupplierSchema = z.object({
       name: z.string().optional(),
@@ -68,13 +69,13 @@ export default class SupplierController {
         data,
       });
 
-      return res.send();
+      return reply.send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error updating supplier' });
+      return reply.status(400).send({ error: 'Error updating supplier' });
     }
   }
 
-  async delete(req: Request, res: Response): Promise<any> {
+  async delete(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
 
     try {
@@ -84,9 +85,9 @@ export default class SupplierController {
         },
       });
 
-      return res.json({ message: "Supplier deleted" });
+      return reply.send({ message: "Supplier deleted" });
     } catch (err) {
-      return res.status(400).json({ error: 'Error deleting supplier' });
+      return reply.status(400).send({ error: 'Error deleting supplier' });
     }
   }
 }

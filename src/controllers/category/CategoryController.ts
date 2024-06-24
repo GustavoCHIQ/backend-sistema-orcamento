@@ -1,11 +1,12 @@
-import { Request, Response } from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { Params } from '../../utils/types';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-export default class CategoryController {
-  async create(req: Request, res: Response): Promise<Response> {
+export default new class CategoryController {
+  async create(req: FastifyRequest, reply: FastifyReply) {
     const createCategorySchema = z.object({
       name: z.string({ required_error: 'Name is required' }),
     });
@@ -16,33 +17,33 @@ export default class CategoryController {
         data,
       });
     } catch (error) {
-      return res.status(400).json({ error: 'Error to create category' });
+      return reply.status(400).send({ error: 'Error to create category' });
     }
 
-    return res.status(201);
+    reply.status(201).send();
   }
 
-  async findAll(req: Request, res: Response): Promise<Response> {
+  async findAll(req: FastifyRequest, reply: FastifyReply) {
     const categories = await prisma.categorias.findMany({
       select: {
         id: true,
         name: true,
       },
     });
-    return res.json(categories);
+    return reply.send(categories);
   }
 
-  async findById(req: Request, res: Response): Promise<Response> {
+  async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) {
     const { id } = req.params;
     const category = await prisma.categorias.findUnique({
       where: {
         id: Number(id),
       },
     });
-    return res.json(category);
+    return reply.send(category);
   }
 
-  async update(req: Request, res: Response): Promise<Response> {
+  async update(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) {
     const { id } = req.params;
     const updateCategorySchema = z.object({
       name: z.string().optional(),
@@ -56,13 +57,13 @@ export default class CategoryController {
         },
         data,
       });
-      return res.status(204).send();
+      return reply.status(204).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error to update category' });
+      return reply.status(400).send({ error: 'Error to update category' });
     }
   }
 
-  async delete(req: Request, res: Response): Promise<any> {
+  async delete(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) {
     const { id } = req.params;
     try {
       await prisma.categorias.delete({
@@ -70,9 +71,9 @@ export default class CategoryController {
           id: Number(id),
         },
       });
-      return res.status(204).send();
+      return reply.status(204).send();
     } catch (err) {
-      return res.status(500).json({ error: 'Internal server error' });
+      return reply.status(500).send({ error: 'Error to delete category' });
     }
   }
 }

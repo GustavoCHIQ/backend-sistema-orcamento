@@ -1,11 +1,6 @@
-import express from 'express';
-import routes from "./routes";
+import fastify from 'fastify'
+import { routes } from './routes'
+const server = fastify({ logger: false })
 
-const app = express();
-app.use(express.json());
-app.use(routes);
-
-app.listen(3000, () => {
-  console.log("Server is running on http://localhost:3000 🚀");
-
-});
+server.register(routes, { prefix: '/api/v1' })
+server.listen({ port: 3000 }, (err, address) => { err ? console.error(err) : console.log(`Server listening at ${address}`) })

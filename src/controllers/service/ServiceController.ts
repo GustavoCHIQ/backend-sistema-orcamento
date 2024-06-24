@@ -1,11 +1,12 @@
-import { Request, Response } from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { Params } from '../../utils/types';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-export default class ServiceController {
-  async create(req: Request, res: Response): Promise<Response> {
+export default new class ServiceController {
+  async create(req: FastifyRequest, reply: FastifyReply): Promise<any> {
     const createServiceSchema = z.object({
       name: z.string({ required_error: 'Name is required' }),
       description: z.string({ required_error: 'Description is required' }),
@@ -19,39 +20,39 @@ export default class ServiceController {
         data,
       });
 
-      return res.status(201).send();
+      return reply.status(201).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error creating service' });
+      return reply.status(400).send({ error: 'Error creating service' });
     }
   }
 
-  async findAll(req: Request, res: Response): Promise<Response> {
+  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
     try {
       const services = await prisma.servicos.findMany();
 
-      return res.json(services);
+      return reply.send(services);
 
     } catch (error) {
-      return res.status(500).json({ error: 'Internal server error' });
+      return reply.status(500).send({ error: 'Internal server error' });
     }
   }
 
-  async findById(req: Request, res: Response): Promise<Response> {
+  async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     try {
       const { id } = req.params;
       const service = await prisma.servicos.findUnique({
         where: { id: Number(id) },
       });
       if (!service) {
-        return res.status(404).json({ error: 'Service not found' });
+        return reply.status(404).send({ error: 'Service not found' });
       }
-      return res.json(service);
+      return reply.send(service);
     } catch (error) {
-      return res.status(500).json({ error: 'Internal server error' });
+      return reply.status(500).send({ error: 'Internal server error' });
     }
   }
 
-  async update(req: Request, res: Response): Promise<Response> {
+  async update(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
     const updateServiceSchema = z.object({
       name: z.string().optional(),
@@ -67,13 +68,13 @@ export default class ServiceController {
         data,
       });
 
-      return res.status(200).send();
+      return reply.status(200).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error updating service' });
+      return reply.status(400).send({ error: 'Error updating service' });
     }
   }
 
-  async delete(req: Request, res: Response): Promise<any> {
+  async delete(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
 
     try {
@@ -82,16 +83,16 @@ export default class ServiceController {
       });
 
       if (!existingService) {
-        return res.status(404).json({ error: 'Service not found' });
+        return reply.status(404).send({ error: 'Service not found' });
       }
 
       await prisma.servicos.delete({
         where: { id: Number(id) },
       });
 
-      return res.json({ message: 'Service deleted successfully' });
+      return reply.send({ message: 'Service deleted successfully' });
     } catch (error) {
-      return res.status(500).json({ error: 'Internal server error' });
+      return reply.status(500).send({ error: 'Internal server error' });
     }
   }
 }

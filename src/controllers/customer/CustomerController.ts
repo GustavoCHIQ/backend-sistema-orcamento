@@ -1,11 +1,12 @@
-import { Request, Response } from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient, TipoCliente } from '@prisma/client';
+import { Params } from '../../utils/types';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-export default class CustomerController {
-  async create(req: Request, res: Response): Promise<Response> {
+export default new class CustomerController {
+  async create(req: FastifyRequest, reply: FastifyReply): Promise<any> {
     const createCustomerSchema = z.object({
       name: z.string({ required_error: 'Name is required' }),
       email: z.string({ required_error: 'Email is required' }).email(),
@@ -23,13 +24,13 @@ export default class CustomerController {
         data
       })
 
-      return res.status(201).send();
+      return reply.status(201).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error creating client' });
+      return reply.status(400).send({ error: 'Error creating client' });
     }
   }
 
-  async findAll(req: Request, res: Response): Promise<Response> {
+  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
     try {
       const clients = await prisma.clientes.findMany({
         select: {
@@ -47,15 +48,14 @@ export default class CustomerController {
           }
         }
       });
-      return res.json(clients);
+      return reply.send(clients);
     } catch (error) {
-      return res.status(400).json({ error: 'Error loading clients' });
+      return reply.status(400).send({ error: 'Error loading clients' });
     }
   }
 
-  async findById(req: Request, res: Response): Promise<Response> {
+  async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
-
     try {
       const client = await prisma.clientes.findUnique({
         where: {
@@ -74,16 +74,16 @@ export default class CustomerController {
       });
 
       if (!client) {
-        return res.status(404).json({ error: 'Client not found' });
+        return reply.status(404).send({ error: 'Client not found' });
       }
 
-      return res.json(client);
+      return reply.send(client);
     } catch (error) {
-      return res.status(400).json({ error: 'Error loading client' });
+      return reply.status(400).send({ error: 'Error loading client' });
     }
   }
 
-  async update(req: Request, res: Response): Promise<Response> {
+  async update(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
     const updateClientSchema = z.object({
       name: z.string().optional(),
@@ -106,13 +106,13 @@ export default class CustomerController {
         data
       });
 
-      return res.status(204).send();
+      return reply.status(204).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error updating client' });
+      return reply.status(400).send({ error: 'Error updating client' });
     }
   }
 
-  async delete(req: Request, res: Response): Promise<any> {
+  async delete(req: FastifyRequest<{ Params: Params }>, res: FastifyReply): Promise<any> {
     const { id } = req.params;
 
     try {
@@ -122,9 +122,9 @@ export default class CustomerController {
         }
       });
 
-      return res.json({ message: 'Client deleted successfully' });
+      return res.send({ message: 'Client deleted successfully' });
     } catch (error) {
-      return res.status(400).json({ error: 'Error deleting client' });
+      return res.status(400).send({ error: 'Error deleting client' });
     }
   }
 }

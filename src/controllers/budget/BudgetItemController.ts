@@ -1,5 +1,6 @@
-import { Request, Response } from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { Params, Quantity, CreateBudgetItemBody } from '../../utils/types';
 import { z } from 'zod';
 
 const Prisma = new PrismaClient();
@@ -16,55 +17,51 @@ const updateBudgetItemSchema = z.object({
 });
 
 export default class BudgetItemController {
-  async create(request: Request, response: Response): Promise<Response> {
+  async create(request: FastifyRequest<{ Body: CreateBudgetItemBody }>, reply: FastifyReply): Promise<any> {
     const { budgetId, productId, serviceId, quantity } = request.body;
 
     if (!productId && !serviceId) {
-      return response.status(400).json({ error: "Product ID or Service ID is required" });
+      return reply.status(400).send({ error: "Product ID or Service ID is required" });
     }
 
     const budgetItemAlreadyExists = await Prisma.orcamentoItens.findFirst({
       where: {
-        budgetId,
-        productId,
-        serviceId
+        budgetId: Number(budgetId),
+        productId: Number(productId),
+        serviceId: Number(serviceId)
       }
     });
 
     if (budgetItemAlreadyExists) {
-      return response.status(400).json({ error: "Budget item already exists" });
+      return reply.status(400).send({ error: "Budget item already exists" });
     }
 
     try {
       await budgetItemSchema.parse(request.body);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return response.status(400).json({ error: error.errors[0] });
-      }
+      return reply.status(400).send("Error creating budget item");
     }
 
     const budgetItem = await Prisma.orcamentoItens.create({
       data: {
-        budgetId,
-        productId,
-        serviceId,
-        quantity
+        budgetId: Number(budgetId),
+        productId: Number(productId),
+        serviceId: Number(serviceId),
+        quantity: Number(quantity)
       }
     });
 
-    return response.json(budgetItem);
+    return reply.send(budgetItem);
   }
 
-  async update(request: Request, response: Response) {
+  async update(request: FastifyRequest<{ Params: Params; Body: Quantity }>, reply: FastifyReply): Promise<any> {
     const { id } = request.params;
     const { quantity } = request.body;
 
     try {
       await updateBudgetItemSchema.parse(request.body);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return response.status(400).json({ error: error.errors[0] });
-      }
+      return reply.status(400).send("Error updating budget item");
     }
 
     const budgetItem = await Prisma.orcamentoItens.update({
@@ -72,14 +69,14 @@ export default class BudgetItemController {
         id: Number(id)
       },
       data: {
-        quantity
+        quantity: Number(quantity)
       }
     });
 
-    return response.json(budgetItem);
+    return reply.send(budgetItem);
   }
 
-  async delete(request: Request, response: Response) {
+  async delete(request: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = request.params;
 
     await Prisma.orcamentoItens.delete({
@@ -88,6 +85,6 @@ export default class BudgetItemController {
       }
     });
 
-    return response.status(204).send();
+    return reply.status(204).send();
   }
 }

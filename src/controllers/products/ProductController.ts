@@ -1,11 +1,12 @@
-import { Request, Response } from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { Params } from '../../utils/types';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-export default class ProductController {
-  async create(req: Request, res: Response): Promise<Response> {
+export default new class ProductController {
+  async create(req: FastifyRequest, reply: FastifyReply): Promise<any> {
     const createProductSchema = z.object({
       name: z.string({ required_error: 'Name is required' }),
       description: z.string({ required_error: 'Description is required' }),
@@ -20,13 +21,13 @@ export default class ProductController {
         data,
       });
 
-      return res.status(201).send();
+      return reply.status(201).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error creating product' });
+      return reply.status(400).send({ error: 'Error creating product' });
     }
   }
 
-  async findAll(req: Request, res: Response): Promise<Response> {
+  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
     const products = await prisma.produtos.findMany({
       select: {
         id: true,
@@ -47,20 +48,20 @@ export default class ProductController {
         }
       },
     });
-    return res.json(products);
+    return reply.send(products);
   }
 
-  async findById(req: Request, res: Response): Promise<Response> {
+  async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
     const product = await prisma.produtos.findUnique({
       where: {
         id: Number(id),
       },
     });
-    return res.json(product);
+    return reply.send(product);
   }
 
-  async update(req: Request, res: Response): Promise<Response> {
+  async update(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
 
     const updateProductSchema = z.object({
@@ -79,13 +80,13 @@ export default class ProductController {
         },
         data,
       });
-      return res.status(204).send();
+      return reply.status(204).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error updating product' });
+      return reply.status(400).send({ error: 'Error updating product' });
     }
   }
 
-  async delete(req: Request, res: Response): Promise<any> {
+  async delete(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
     try {
       await prisma.produtos.delete({
@@ -94,9 +95,9 @@ export default class ProductController {
         },
       });
 
-      return res.json({ message: "Product deleted" });
+      return reply.send({ message: "Product deleted" });
     } catch (err) {
-      return res.status(400).json({ error: 'Error deleting product' });
+      return reply.status(400).send({ error: 'Error deleting product' });
     }
   }
 }

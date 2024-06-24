@@ -1,34 +1,9 @@
-import { Request, Response } from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { Params, AddItemData, ApplyDiscountData, CreateBudgetData, UpdateBudgetData } from '../../utils/types';
 import { z } from 'zod';
 import utils from '../products/utils';
 const prisma = new PrismaClient();
-
-// Interfaces para tipagem
-interface CreateBudgetData {
-  userId: number;
-  clientId: number;
-  totalPrice?: number;
-}
-
-
-interface AddItemData {
-  budgetId: number;
-  productId?: number | null;
-  serviceId?: number | null;
-  quantity: number;
-  discount?: number;
-  totalPrice?: number;
-}
-
-interface ApplyDiscountData {
-  budgetId: number;
-  discount: number;
-}
-
-interface UpdateBudgetData {
-  isApproved: boolean;
-}
 
 // Schemas de validação com Zod
 const createBudgetSchema = z.object({
@@ -55,8 +30,8 @@ const updateBudgetSchema = z.object({
   isApproved: z.boolean({ required_error: 'Approved is required' }),
 });
 
-export default class BudgetController {
-  async createBudget(req: Request, res: Response): Promise<Response> {
+export default new class BudgetController {
+  async createBudget(req: FastifyRequest<{ Body: CreateBudgetData }>, reply: FastifyReply): Promise<any> {
     try {
       createBudgetSchema.parse(req.body);
       const { userId, clientId, totalPrice = 0 }: CreateBudgetData = req.body;
@@ -66,18 +41,17 @@ export default class BudgetController {
           userId,
           clientId,
           totalPrice,
-          discount: 0, // Inicialmente 0, pode ser atualizado posteriormente
+          discount: 0, // Initially 0, can be updated later
         },
       });
 
-      return res.status(201).send();
+      return reply.status(201).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error creating budget' });
+      return reply.status(400).send({ error: 'Error creating budget' });
     }
   }
 
-  // Method to add an item to a budget
-  async addItem(req: Request, res: Response): Promise<Response> {
+  async addItem(req: FastifyRequest<{ Body: AddItemData }>, reply: FastifyReply): Promise<any> {
     try {
       await addItemSchema.parse(req.body);
       const { budgetId, productId, serviceId, quantity, discount = 0 }: AddItemData = req.body;
@@ -96,17 +70,16 @@ export default class BudgetController {
         },
       });
 
-      // Recalcular o preço total do orçamento
+      // Recalculate the total price of the budget
       await utils.recalculateBudgetTotal(budgetId);
 
-      return res.status(201).send();
+      return reply.status(201).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error adding item to budget' });
+      return reply.status(400).send({ error: 'Error adding item to budget' });
     }
   }
 
-  // Method to apply a discount to a budget
-  async applyDiscount(req: Request, res: Response): Promise<Response> {
+  async applyDiscount(req: FastifyRequest<{ Body: ApplyDiscountData }>, reply: FastifyReply): Promise<any> {
     try {
       await applyDiscountSchema.parse(req.body);
       const { budgetId, discount }: ApplyDiscountData = req.body;
@@ -120,17 +93,16 @@ export default class BudgetController {
         },
       });
 
-      // Recalcular o preço total do orçamento
+      // Recalculate the total price of the budget
       await utils.recalculateBudgetTotal(budgetId);
 
-      return res.status(200).send();
+      return reply.status(200).send();
     } catch (error) {
-      return res.status(400).json(error);
+      return reply.status(400).send(error);
     }
   }
 
-  // Method to list all budgets and their items
-  async findAll(req: Request, res: Response): Promise<Response> {
+  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
     try {
       const budgets = await prisma.orcamentos.findMany({
         select: {
@@ -156,14 +128,13 @@ export default class BudgetController {
         },
       });
 
-      return res.status(200).json(budgets);
+      return reply.status(200).send(budgets);
     } catch (error) {
-      return res.status(500).json({ error: 'Internal server error' });
+      return reply.status(500).send({ error: 'Internal server error' });
     }
   }
 
-  // Method to find a budget by id
-  async findById(req: Request, res: Response): Promise<Response> {
+  async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
     try {
       const budget = await prisma.orcamentos.findUnique({
@@ -198,23 +169,22 @@ export default class BudgetController {
       });
 
       if (!budget) {
-        return res.status(404).json({ error: 'Budget not found' });
+        return reply.status(404).send({ error: 'Budget not found' });
       }
 
-      return res.status(200).json(budget);
+      return reply.status(200).send(budget);
     } catch (error) {
-      return res.status(500).json({ error: 'Internal server error' });
+      return reply.status(500).send({ error: 'Internal server error' });
     }
   }
 
-  // Method to update a budget
-  async approveBudget(req: Request, res: Response): Promise<Response> {
+  async approveBudget(req: FastifyRequest<{ Params: Params; Body: UpdateBudgetData }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
     const { isApproved }: UpdateBudgetData = req.body;
 
     try {
       await updateBudgetSchema.parse(req.body);
-      const budget = await prisma.orcamentos.update({
+      await prisma.orcamentos.update({
         where: {
           id: Number(id),
         },
@@ -223,9 +193,9 @@ export default class BudgetController {
         },
       });
 
-      return res.status(200).send();
+      return reply.status(200).send();
     } catch (error) {
-      return res.status(400).json(error);
+      return reply.status(400).send(error);
     }
   }
 }

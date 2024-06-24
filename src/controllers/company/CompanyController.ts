@@ -1,11 +1,12 @@
-import { Request, Response } from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { Params } from '../../utils/types';
 import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
-export default class CompanyController {
-  async create(req: Request, res: Response): Promise<Response> {
+export default new class CompanyController {
+  async create(req: FastifyRequest, reply: FastifyReply): Promise<void> {
     const createEmpresaSchema = z.object({
       name: z.string({ required_error: 'Name is required' }),
       cnpj: z.string({ required_error: 'CNPJ is required' }),
@@ -24,17 +25,13 @@ export default class CompanyController {
         data,
       });
 
-      return res.status(201).send();
+      return reply.status(201).send();
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      } else {
-        return res.status(400).json({ error: 'Error to create company' });
-      }
+      return reply.status(400).send("Error to create company");
     }
   }
 
-  async findAll(req: Request, res: Response): Promise<Response> {
+  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<void> {
     const empresas = await prisma.empresa.findUnique({
       where: {
         id: 1
@@ -42,13 +39,13 @@ export default class CompanyController {
     });
 
     if (!empresas) {
-      return res.status(404).json({ error: 'Company not found' });
+      return reply.status(404).send({ error: 'Company not found' });
     }
 
-    return res.status(200).json(empresas);
+    return reply.status(200).send(empresas);
   }
 
-  async update(req: Request, res: Response): Promise<Response> {
+  async update(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<void> {
     const { id } = req.params;
     const updateEmpresaSchema = z.object({
       name: z.string().optional(),
@@ -69,9 +66,9 @@ export default class CompanyController {
         },
         data,
       });
-      return res.status(204).send();
+      return reply.status(204).send();
     } catch (error) {
-      return res.status(400).json({ error: 'Error to update company' });
+      return reply.status(400).send({ error: 'Error to update company' });
     }
   }
 }
