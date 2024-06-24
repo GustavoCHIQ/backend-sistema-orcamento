@@ -4,8 +4,8 @@ services:
     image: postgres:10.3
     restart: always
     environment:
-      - POSTGRES_USER=gustavo
-      - POSTGRES_PASSWORD=Ygl73274267@
+      - POSTGRES_USER="${POSTGRES_USER}"
+      - POSTGRES_PASSWORD="${POSTGRES_PASSWORD}"
     volumes:
       - postgres:/var/lib/postgresql/data
     ports:
@@ -15,8 +15,8 @@ services:
     image: dpage/pgadmin4
     restart: always
     environment:
-      - PGADMIN_DEFAULT_EMAIL=luis.gustavo09@hotmail.com
-      - PGADMIN_DEFAULT_PASSWORD=ygl73274267@
+      - PGADMIN_DEFAULT_EMAIL="${PGADMIN_DEFAULT_EMAIL}"
+      - PGADMIN_DEFAULT_PASSWORD="${PGADMIN_DEFAULT_PASSWORD}"
     ports:
       - '80:80'
     depends_on:
