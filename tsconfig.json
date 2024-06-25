@@ -11,7 +11,8 @@
     "rootDir": "./src",
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "prisma/**/*"
   ],
   "exclude": [
     "node_modules",
