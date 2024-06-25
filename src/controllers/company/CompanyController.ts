@@ -32,17 +32,27 @@ export default new class CompanyController {
   }
 
   async findAll(req: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const empresas = await prisma.empresa.findUnique({
-      where: {
-        id: 1
-      },
-    });
-
-    if (!empresas) {
-      return reply.status(404).send({ error: 'Company not found' });
+    try {
+      const empresas = await prisma.empresa.findUnique({
+        where: {
+          id: 1
+        },
+        select: {
+          id: true,
+          name: true,
+          cnpj: true,
+          phone: true,
+          ie: true,
+          pngLogo: true,
+          email: true,
+          address: true,
+          city: true,
+        }
+      });
+      reply.status(200).send(empresas);
+    } catch (error) {
+      return reply.status(400).send({ error: 'Error to find company' });
     }
-
-    return reply.status(200).send(empresas);
   }
 
   async update(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<void> {
