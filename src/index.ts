@@ -3,4 +3,9 @@ import { routes } from './routes'
 const server = fastify({ logger: false })
 
 server.register(routes, { prefix: '/api/v1' })
-server.listen({ port: 3000 }, (err, address) => { err ? console.error(err) : console.log(`🚀 Servidor rodando no endereço ${address}`) })
+server.listen({
+  host: '0.0.0.0',
+  port: process.env.PORT ? Number(process.env.PORT) : 3000
+}).then(() => {
+  console.log("Server running")
+})
