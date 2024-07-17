@@ -1,9 +1,9 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
-import { Params, UpdatePasswordBody } from '../../utils/types';
+import { Login, Params, UpdatePasswordBody } from '../../utils/types';
+import * as jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-
 require('dotenv').config();
 
 const prisma = new PrismaClient();
@@ -50,19 +50,28 @@ export default new class UserController {
   async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
 
-    const user = await prisma.usuarios.findUnique({
-      where: {
-        id: Number(id),
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-      }
-    });
+    try {
+      const user = await prisma.usuarios.findUnique({
+        where: {
+          id: Number(id),
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+        }
+      });
 
-    return reply.send(user);
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      return reply.send(user);
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      return reply.status(500).send({ error: 'Internal server error' });
+    }
   }
 
   async update(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
@@ -149,4 +158,35 @@ export default new class UserController {
       return reply.status(400).send({ error: 'Error deleting user' });
     }
   }
-};
+
+  async login(req: FastifyRequest<{ Params: Params; Body: Login }>, reply: FastifyReply): Promise<any> {
+    const { email, password } = req.body;
+
+    const user = await prisma.usuarios.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    if (!user) {
+      return reply.status(404).send({ error: 'User not found' });
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) {
+      return reply.status(401).send({ error: 'Invalid password' });
+    }
+
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || '', {
+      expiresIn: 60,
+    });
+
+    reply.status(200).send({ auth: true, token });
+  }
+
+
+  async logout(req: FastifyRequest, reply: FastifyReply): Promise<any> {
+    // use JWT to logout user and invalidate token
+  }
+}

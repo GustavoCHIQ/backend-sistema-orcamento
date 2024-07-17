@@ -1,6 +1,6 @@
 export type Params = {
   id: string;
-}
+};
 
 export type CreateBudgetData = {
   userId: number;
@@ -28,6 +28,11 @@ export type UpdateBudgetData = {
 
 export type UpdatePasswordBody = {
   previousPassword: string;
+  password: string;
+};
+
+export type Login = {
+  email: string;
   password: string;
 };
 

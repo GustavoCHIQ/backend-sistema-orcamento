@@ -20,6 +20,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.14.6",
     "prisma": "^5.14.0",
     "tsup": "^8.1.0",
@@ -27,10 +28,12 @@
     "typescript": "^5.5.2"
   },
   "dependencies": {
+    "@fastify/jwt": "^8.0.1",
     "@prisma/client": "^5.14.0",
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.5",
     "fastify": "^4.28.0",
+    "jsonwebtoken": "^9.0.2",
     "zod": "^3.23.8"
   }
 }

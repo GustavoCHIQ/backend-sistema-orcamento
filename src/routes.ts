@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply, FastifyInstance } from "fastify";
-import { Params, UpdatePasswordBody, CreateBudgetData, AddItemData, ApplyDiscountData, UpdateBudgetData } from "./utils/types";
+import { UpdatePasswordBody, CreateBudgetData, AddItemData, ApplyDiscountData, UpdateBudgetData, Login } from "./utils/types";
 import CityController from "./controllers/city/CityController";
 import ProductController from "./controllers/products/ProductController";
 import CategoryController from "./controllers/category/CategoryController";
@@ -9,6 +9,11 @@ import CompanyController from "./controllers/company/CompanyController";
 import CustomerController from "./controllers/customer/CustomerController";
 import SupplierController from "./controllers/supplier/SupplierController";
 import ServiceController from "./controllers/service/ServiceController";
+import { verifyJwt } from "./middlewares/JWTAuth";
+
+type Params = {
+  id: string;
+};
 
 export async function routes(server: FastifyInstance) {
   // server for the City entity
@@ -24,12 +29,13 @@ export async function routes(server: FastifyInstance) {
   server.put("/company/:id", async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await CompanyController.update(req, reply) });
 
   // server for the User entity
-  server.post("/users", async (req: FastifyRequest, reply: FastifyReply) => { await UserController.create(req, reply) });
-  server.get("/users", async (req: FastifyRequest, reply: FastifyReply) => { await UserController.findAll(req, reply) });
-  server.get("/users/:id", async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await UserController.findById(req, reply) });
-  server.put("/users/:id", async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await UserController.update(req, reply) });
-  server.patch("/users/:id", async (req: FastifyRequest<{ Params: Params; Body: UpdatePasswordBody }>, reply: FastifyReply) => { await UserController.updatePassword(req, reply) });
-  server.delete("/users/:id", async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await UserController.delete(req, reply) });
+  server.post("/users", { onRequest: [verifyJwt] }, async (req: FastifyRequest, reply: FastifyReply) => { await UserController.create(req, reply) });
+  server.get('/users', { onRequest: [verifyJwt] }, async (req: FastifyRequest, reply: FastifyReply) => { await UserController.findAll(req, reply); });
+  server.get<{ Params: Params }>('/users/:id', { onRequest: [verifyJwt] }, async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await UserController.findById(req, reply); });
+  server.put<{ Params: Params }>('/users/:id', { onRequest: [verifyJwt] }, async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await UserController.update(req, reply); });
+  server.patch<{ Params: Params; Body: UpdatePasswordBody }>("/users/:id", { onRequest: [verifyJwt] }, async (req: FastifyRequest<{ Params: Params; Body: UpdatePasswordBody }>, reply: FastifyReply) => { await UserController.updatePassword(req, reply); });
+  server.delete<{ Params: Params }>("/users/:id", { onRequest: [verifyJwt] }, async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await UserController.delete(req, reply); });
+  server.post('/users/login', async (req: FastifyRequest<{ Params: Params; Body: Login }>, reply: FastifyReply) => { await UserController.login(req, reply); });
 
   // server for the Client entity
   server.post("/clients", async (req: FastifyRequest, reply: FastifyReply) => { await CustomerController.create(req, reply) });
