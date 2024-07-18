@@ -131,26 +131,23 @@ export default new class UserController {
   }
 
   async delete(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
-    const { id } = req.params;
-
-    const userNotExists = await prisma.usuarios.findUnique({
-      where: {
-        id: Number(id),
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (id !== userNotExists?.id.toString()) {
-      return reply.status(404).send({ error: 'User not found' });
-    }
-
     try {
-      await prisma.usuarios.delete({
+      const { id } = req.params;
+
+      const usuario = await prisma.usuarios.findUnique({
         where: {
           id: Number(id),
         },
+      });
+
+      if (!usuario) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      await prisma.usuarios.delete({
+        where: {
+          id: Number(id)
+        }
       });
 
       return reply.status(204).send();
@@ -161,6 +158,10 @@ export default new class UserController {
 
   async login(req: FastifyRequest<{ Params: Params; Body: Login }>, reply: FastifyReply): Promise<any> {
     const { email, password } = req.body;
+
+    if (req.body === undefined || !email || !password) {
+      return reply.status(400).send({ error: 'Invalid request' });
+    }
 
     const user = await prisma.usuarios.findUnique({
       where: {
@@ -179,7 +180,7 @@ export default new class UserController {
     }
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || '', {
-      expiresIn: 60,
+      expiresIn: '1d',
     });
 
     reply.status(200).send({ auth: true, token });
@@ -187,6 +188,7 @@ export default new class UserController {
 
 
   async logout(req: FastifyRequest, reply: FastifyReply): Promise<any> {
-    // use JWT to logout user and invalidate token
+    // jwt destroy token
+    reply.send({ auth: false, token: null });
   }
 }

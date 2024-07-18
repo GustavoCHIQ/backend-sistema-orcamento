@@ -1,13 +1,19 @@
-import fastify from 'fastify'
-import fastifyJwt from '@fastify/jwt'
-import { routes } from './routes'
-const server = fastify({ logger: false })
+import fastify from 'fastify';
+import fastifyJwt from '@fastify/jwt';
+import { routes } from './routes';
 
-server.register(routes, { prefix: '/api/v1' })
-server.register(fastifyJwt, { secret: process.env.JWT_SECRET || '' })
+const server = fastify({ logger: false });
+const jwtSecret = process.env.JWT_SECRET || '';
+
+server.register(fastifyJwt, { secret: jwtSecret });
+server.register(routes, { prefix: '/api/v1' });
+
 server.listen({
   host: '0.0.0.0',
   port: process.env.PORT ? Number(process.env.PORT) : 3000
 }).then(() => {
-  console.log("Server running")
-})
+  console.log("Server running on port 3000 🚀");
+}).catch(err => {
+  console.error(err);
+  process.exit(1);
+});
