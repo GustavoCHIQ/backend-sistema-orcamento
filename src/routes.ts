@@ -32,7 +32,7 @@ export async function routes(server: FastifyInstance) {
   server.patch<{ Params: Params; Body: UpdatePasswordBody }>("/users/:id", { onRequest: [verifyJwt] }, async (req: FastifyRequest<{ Params: Params; Body: UpdatePasswordBody }>, reply: FastifyReply) => { await UserController.updatePassword(req, reply); });
   server.delete<{ Params: Params }>("/users/:id", { onRequest: [verifyJwt] }, async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await UserController.delete(req, reply); });
   server.post('/users/login', async (req: FastifyRequest<{ Params: Params; Body: Login }>, reply: FastifyReply) => { await UserController.login(req, reply); });
-  server.post('/users/logout', { onRequest: [verifyJwt] }, async (req: FastifyRequest, reply: FastifyReply) => { await UserController.logout(req, reply); });
+  server.delete('/users/logout', async (req: FastifyRequest, reply: FastifyReply) => { await UserController.logout(req, reply); });
 
   // server for the Client entity
   server.post("/clients", { onRequest: [verifyJwt] }, async (req: FastifyRequest, reply: FastifyReply) => { await CustomerController.create(req, reply) });
@@ -69,7 +69,6 @@ export async function routes(server: FastifyInstance) {
   server.get("/budgets", { onRequest: [verifyJwt] }, async (req: FastifyRequest, reply: FastifyReply) => { await BudgetController.findAll(req, reply) });
   server.get<{ Params: Params }>("/budgets/:id", { onRequest: [verifyJwt] }, async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await BudgetController.findById(req, reply) });
   server.patch<{ Params: Params; Body: UpdateBudgetData }>("/budgets/:id", { onRequest: [verifyJwt] }, async (req: FastifyRequest<{ Params: Params; Body: UpdateBudgetData }>, reply: FastifyReply) => { await BudgetController.approveBudget(req, reply) });
-
   // server for the Service entity
   server.post("/services", { onRequest: [verifyJwt] }, async (req: FastifyRequest, reply: FastifyReply) => { await ServiceController.create(req, reply) });
   server.get("/services", { onRequest: [verifyJwt] }, async (req: FastifyRequest, reply: FastifyReply) => { await ServiceController.findAll(req, reply) });

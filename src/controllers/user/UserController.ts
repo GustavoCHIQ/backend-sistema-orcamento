@@ -4,6 +4,8 @@ import { Login, Params, UpdatePasswordBody } from '../../utils/types';
 import * as jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+
+const { serialize, parse } = require('@fastify/cookie')
 require('dotenv').config();
 
 const prisma = new PrismaClient();
@@ -156,10 +158,10 @@ export default new class UserController {
     }
   }
 
-  async login(req: FastifyRequest<{ Params: Params; Body: Login }>, reply: FastifyReply): Promise<any> {
+  async login(req: FastifyRequest<{ Body: { email: string; password: string } }>, reply: FastifyReply): Promise<any> {
     const { email, password } = req.body;
 
-    if (req.body === undefined || !email || !password) {
+    if (!email || !password) {
       return reply.status(400).send({ error: 'Invalid request' });
     }
 
@@ -180,15 +182,26 @@ export default new class UserController {
     }
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || '', {
-      expiresIn: '1d',
+      expiresIn: '1d', // O token expira em 1 dia
     });
 
-    reply.status(200).send({ auth: true, token });
+    reply.setCookie('access_token', token, {
+      path: '/',
+      httpOnly: true,
+      expires: new Date(Date.now() + 86400000), // 1 dia
+    });
+
+    return reply.send({ token });
   }
 
-
   async logout(req: FastifyRequest, reply: FastifyReply): Promise<any> {
-    // jwt destroy token
-    reply.send({ auth: false, token: null });
+    // check if the user is authenticated
+    if (!req.cookies.access_token) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    // remove the cookie from the response
+    reply.clearCookie('access_token');
+    return reply.send({ message: 'Logged out successfully' });
   }
 }

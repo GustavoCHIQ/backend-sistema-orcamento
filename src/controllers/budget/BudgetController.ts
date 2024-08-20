@@ -36,7 +36,27 @@ export default new class BudgetController {
       createBudgetSchema.parse(req.body);
       const { userId, clientId, totalPrice = 0 }: CreateBudgetData = req.body;
 
-      const newBudget = await prisma.orcamentos.create({
+
+      // find user
+      const user = await prisma.usuarios.findUnique({
+        where: {
+          id: userId,
+        },
+      });
+
+
+      // find client
+      const client = await prisma.clientes.findUnique({
+        where: {
+          id: clientId,
+        },
+      });
+
+      if (!user || !client) {
+        return reply.status(404).send({ error: 'User or client not found' });
+      }
+
+      await prisma.orcamentos.create({
         data: {
           userId,
           clientId,
@@ -46,8 +66,11 @@ export default new class BudgetController {
       });
 
       return reply.status(201).send();
-    } catch (error) {
-      return reply.status(400).send({ error: 'Error creating budget' });
+
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        reply.status(400).send({ error: err.issues });
+      }
     }
   }
 
@@ -107,9 +130,8 @@ export default new class BudgetController {
       const budgets = await prisma.orcamentos.findMany({
         select: {
           id: true,
-          userId: true,
-          clientId: true,
           totalPrice: true,
+          status: true,
           discount: true,
           createdAt: true,
           items: {
@@ -123,6 +145,20 @@ export default new class BudgetController {
               produtos: {
                 select: { id: true, name: true, price: true },
               },
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          client: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
             },
           },
         },

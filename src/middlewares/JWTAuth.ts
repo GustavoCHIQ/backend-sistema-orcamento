@@ -3,13 +3,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 
 class UserUtils {
   public static async verifyJwt(request: FastifyRequest, reply: FastifyReply) {
-    const authorizationHeader = request.headers.authorization;
-
-    if (!authorizationHeader) {
-      return reply.status(401).send({ error: 'Nenhum token fornecido' });
-    }
-
-    const token = authorizationHeader.split(' ')[1];
+    const token = request.cookies['access_token']; // Busca o token no cookie
 
     if (!token) {
       return reply.status(401).send({ error: 'Nenhum token fornecido' });
