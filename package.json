@@ -12,7 +12,6 @@
     "seed": "tsx prisma/seed.ts"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts",
     "schema": "prisma/schema.prisma"
   },
   "keywords": [],
@@ -28,6 +27,7 @@
     "typescript": "^5.5.2"
   },
   "dependencies": {
+    "@fastify/cookie": "^9.3.1",
     "@fastify/jwt": "^8.0.1",
     "@prisma/client": "^5.14.0",
     "bcryptjs": "^2.4.3",
