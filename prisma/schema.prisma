@@ -103,6 +103,7 @@ model Orcamentos {
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
   isApproved Boolean          @default(false)
+  status     StatusOrcamento  @default(negociacao)
   client     Clientes         @relation(fields: [clientId], references: [id])
   user       Usuarios         @relation(fields: [userId], references: [id])
   items      OrcamentoItens[]
@@ -118,6 +119,15 @@ model OrcamentoItens {
   totalPrice Float      @default(0)
   orcamentos Orcamentos @relation(fields: [budgetId], references: [id])
   produtos   Produtos?  @relation(fields: [productId], references: [id])
+}
+
+enum StatusOrcamento {
+  negociacao
+  aprovado
+  execucao
+  finalizado
+  cancelado
+  perdido
 }
 
 enum TipoCliente {
