@@ -5,6 +5,7 @@ import { routes } from './routes';
 
 const server = fastify({ logger: false });
 const jwtSecret = process.env.JWT_SECRET || '';
+const port = process.env.PORT || 4516;
 
 server.register(fastifyJwt, { secret: jwtSecret });
 server.register(cookie, {
@@ -14,9 +15,9 @@ server.register(routes, { prefix: '/api/v1' });
 
 server.listen({
   host: '0.0.0.0',
-  port: 3000,
+  port: Number(port),
 }).then(() => {
-  console.log("Server running on port 3000 🚀");
+  console.log(`Server running on port ${port} 🚀`);
 }).catch(err => {
   console.error(err);
   process.exit(1);

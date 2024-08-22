@@ -5,9 +5,7 @@ class UserUtils {
   public static async verifyJwt(request: FastifyRequest, reply: FastifyReply) {
     const token = request.cookies['access_token']; // Busca o token no cookie
 
-    if (!token) {
-      return reply.status(401).send({ error: 'Nenhum token fornecido' });
-    }
+    if (!token) { return reply.status(401).send({ error: 'Nenhum token fornecido' }); }
 
     const jwtSecret = process.env.JWT_SECRET;
 

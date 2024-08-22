@@ -1,11 +1,9 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
-import { Login, Params, UpdatePasswordBody } from '../../utils/types';
-import * as jwt from 'jsonwebtoken';
+import { Params, UpdatePasswordBody } from '../../utils/types';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 
-const { serialize, parse } = require('@fastify/cookie')
 require('dotenv').config();
 
 const prisma = new PrismaClient();
@@ -22,6 +20,16 @@ export default new class UserController {
       const data = createUserSchema.parse(req.body);
       const hashedPassword = await bcrypt.hash(data.password, 8);
 
+      const user = await prisma.usuarios.findUnique({
+        where: {
+          email: data.email,
+        },
+      });
+
+      if (user) {
+        return reply.status(400).send({ error: 'User already exists' });
+      }
+
       await prisma.usuarios.create({
         data: {
           name: data.name,
@@ -30,9 +38,9 @@ export default new class UserController {
         },
       });
 
-      return reply.status(201).send();
+      reply.status(201).send({ message: 'User created successfully' });
     } catch (error) {
-      return reply.status(400).send({ error: 'Error creating user' });
+      reply.status(400).send({ error: 'Error creating user' });
     }
   }
 
@@ -78,7 +86,7 @@ export default new class UserController {
 
   async update(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const updateUserSchema = z.object({
-      name: z.string().min(3, 'Name must have at least 3 characters').optional(),
+      name: z.string().min(5, 'Name must have at least 5 characters').optional(),
       email: z.string().email('Invalid email format').optional(),
     });
 
@@ -94,13 +102,15 @@ export default new class UserController {
       });
       return reply.send();
     } catch (error) {
-      return reply.status(400).send({ error: 'Error updating user' });
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
     }
   }
 
   async updatePassword(req: FastifyRequest<{ Params: Params; Body: UpdatePasswordBody }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
-    const { previousPassword, password } = req.body;
+    const { previousPassword, password, confirmPassword } = req.body;
 
     const hashedPassword = await bcrypt.hash(password, 8);
 
@@ -112,6 +122,10 @@ export default new class UserController {
 
     if (!user) {
       return reply.status(404).send({ error: 'User not found' });
+    }
+
+    if (password !== confirmPassword) {
+      return reply.status(400).send({ error: 'Passwords do not match' });
     }
 
     const passwordMatch = await bcrypt.compare(previousPassword, user.password);
@@ -156,52 +170,5 @@ export default new class UserController {
     } catch (error) {
       return reply.status(400).send({ error: 'Error deleting user' });
     }
-  }
-
-  async login(req: FastifyRequest<{ Body: { email: string; password: string } }>, reply: FastifyReply): Promise<any> {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return reply.status(400).send({ error: 'Invalid request' });
-    }
-
-    const user = await prisma.usuarios.findUnique({
-      where: {
-        email,
-      },
-    });
-
-    if (!user) {
-      return reply.status(404).send({ error: 'User not found' });
-    }
-
-    const passwordMatch = await bcrypt.compare(password, user.password);
-
-    if (!passwordMatch) {
-      return reply.status(401).send({ error: 'Invalid password' });
-    }
-
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || '', {
-      expiresIn: '1d', // O token expira em 1 dia
-    });
-
-    reply.setCookie('access_token', token, {
-      path: '/',
-      httpOnly: true,
-      expires: new Date(Date.now() + 86400000), // 1 dia
-    });
-
-    return reply.send({ token });
-  }
-
-  async logout(req: FastifyRequest, reply: FastifyReply): Promise<any> {
-    // check if the user is authenticated
-    if (!req.cookies.access_token) {
-      return reply.status(401).send({ error: 'Unauthorized' });
-    }
-
-    // remove the cookie from the response
-    reply.clearCookie('access_token');
-    return reply.send({ message: 'Logged out successfully' });
   }
 }

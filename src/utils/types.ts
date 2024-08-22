@@ -29,6 +29,7 @@ export type UpdateBudgetData = {
 export type UpdatePasswordBody = {
   previousPassword: string;
   password: string;
+  confirmPassword: string;
 };
 
 export type Login = {

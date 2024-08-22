@@ -2,7 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { PrismaClient } from '@prisma/client';
 import { Params, AddItemData, ApplyDiscountData, CreateBudgetData, UpdateBudgetData } from '../../utils/types';
 import { z } from 'zod';
-import utils from '../products/utils';
+import utils from '../products/ProductUtilController';
 const prisma = new PrismaClient();
 
 // Schemas de validação com Zod
@@ -143,7 +143,11 @@ export default new class BudgetController {
               discount: true,
               totalPrice: true,
               produtos: {
-                select: { id: true, name: true, price: true },
+                select: {
+                  id: true,
+                  name: true,
+                  price: true
+                },
               },
             },
           },
@@ -219,7 +223,7 @@ export default new class BudgetController {
     const { isApproved }: UpdateBudgetData = req.body;
 
     try {
-      await updateBudgetSchema.parse(req.body);
+      updateBudgetSchema.parse(req.body);
       await prisma.orcamentos.update({
         where: {
           id: Number(id),
