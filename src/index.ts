@@ -1,4 +1,5 @@
 import fastify from 'fastify';
+import cors from '@fastify/cors';
 import fastifyJwt from '@fastify/jwt';
 import cookie, { FastifyCookieOptions } from '@fastify/cookie';
 import { routes } from './routes';
@@ -13,10 +14,14 @@ server.register(cookie, {
   secret: process.env.COOKIE_SECRET || ''
 } as FastifyCookieOptions);
 server.register(routes, { prefix: '/api/v1' });
+server.register(cors, {
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true,
+});
 
 checkDatabase().then(() => {
   server.listen({
-    host: '0.0.0.0',
+    host: "::",
     port: Number(port),
   }).then(() => {
     console.log(`Servidor rodando na porta ${port}`);

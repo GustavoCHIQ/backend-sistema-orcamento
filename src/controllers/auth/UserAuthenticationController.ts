@@ -31,13 +31,13 @@ export default new class UserAuthenticationController {
     }
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || '', {
-      expiresIn: '1d', // O token expira em 1 dia
+      expiresIn: '1d',
     });
 
     reply.setCookie('access_token', token, {
       path: '/',
       httpOnly: true,
-      expires: new Date(Date.now() + 86400000), // 1 dia
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
 
     return reply.send({ token });
@@ -60,6 +60,37 @@ export default new class UserAuthenticationController {
 
     } catch (error) {
       return reply.status(401).send({ error: 'Unauthorized' });
+    }
+  }
+
+  // Valida o token de acesso do usuário autenticado
+  async validateToken(req: FastifyRequest, reply: FastifyReply): Promise<any> {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      if (!token) {
+        return reply.status(401).send({ error: 'No token provided' });
+      }
+
+      // Decodifica o token e faz um type check
+      const decoded = jwt.decode(token);
+
+      // Verifica se o valor decodificado é do tipo JwtPayload
+      if (typeof decoded !== 'string' && decoded?.exp) {
+        // Verifica a data de validade do token
+        if (decoded.exp < Date.now() / 1000) {
+          return reply.status(401).send({ error: 'Token expired' });
+        }
+      }
+
+      // Verifica se o JWT é válido
+      jwt.verify(token, process.env.JWT_SECRET || '');
+      return reply.send({ message: 'Valid token' });
+
+    } catch (error) {
+      if (error instanceof Error) {
+        return reply.status(401).send({ error: error.message });
+      }
+      return reply.status(500).send({ error: 'Unknown error' });
     }
   }
 }

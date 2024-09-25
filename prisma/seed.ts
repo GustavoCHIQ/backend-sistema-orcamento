@@ -1,7 +1,9 @@
 import { log } from 'console';
+import bcrypt from 'bcryptjs';
 
 (async () => {
   const { PrismaClient } = await import('@prisma/client');
+  const hashedPassword = await bcrypt.hash('admin', 8);
   const prisma = new PrismaClient();
 
   async function main() {
@@ -22,7 +24,7 @@ import { log } from 'console';
       update: {},
       create: {
         name: "Admin",
-        password: "admin",
+        password: hashedPassword,
         email: "admin@usonet.com.br"
       },
     });

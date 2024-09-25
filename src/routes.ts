@@ -9,8 +9,9 @@ import CompanyController from "./controllers/company/CompanyController";
 import CustomerController from "./controllers/customer/CustomerController";
 import SupplierController from "./controllers/supplier/SupplierController";
 import ServiceController from "./controllers/service/ServiceController";
+import UserAuthenticationController from "./controllers/auth/UserAuthenticationController";
+
 import { verifyJwt } from "./middlewares/JWTAuth";
-import UserAuthenticationController from "./controllers/user/userAuthenticationController";
 
 export async function routes(server: FastifyInstance) {
   // server for the City entity
@@ -35,6 +36,7 @@ export async function routes(server: FastifyInstance) {
 
   // server for the Authentication entity
   server.post('/users/login', async (req: FastifyRequest<{ Params: Params; Body: Login }>, reply: FastifyReply) => { await UserAuthenticationController.login(req, reply); });
+  server.post('/users/checktoken', async (req: FastifyRequest, reply: FastifyReply) => { await UserAuthenticationController.validateToken(req, reply); });
   server.delete('/users/logout', { onRequest: [verifyJwt] }, async (req: FastifyRequest, reply: FastifyReply) => { await UserAuthenticationController.logout(req, reply); });
 
   // server for the Client entity
