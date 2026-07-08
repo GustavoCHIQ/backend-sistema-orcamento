@@ -1,9 +1,9 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient, TipoCliente } from '@prisma/client';
-import { Params } from '../../utils/types';
+import { TipoCliente } from '@prisma/client';
+import { prisma } from '../../lib/prisma';
+import { Params, ListQuery } from '../../utils/types';
+import { parsePagination, buildSearchFilter } from '../../utils/pagination';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
 
 export default new class CustomerController {
   async create(req: FastifyRequest, reply: FastifyReply): Promise<any> {
@@ -30,25 +30,36 @@ export default new class CustomerController {
     }
   }
 
-  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
+  async findAll(req: FastifyRequest<{ Querystring: ListQuery }>, reply: FastifyReply): Promise<any> {
     try {
-      const clients = await prisma.clientes.findMany({
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          cpfOrCnpj: true,
-          rgOrIe: true,
-          cidades: {
-            select: {
-              id: true,
-              name: true
+      const pagination = parsePagination(req.query);
+      const where = buildSearchFilter(req.query.search, ['name', 'email', 'cpfOrCnpj']);
+
+      const [clients, total] = await Promise.all([
+        prisma.clientes.findMany({
+          where,
+          skip: pagination.skip,
+          take: pagination.limit,
+          orderBy: { name: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            cpfOrCnpj: true,
+            rgOrIe: true,
+            cidades: {
+              select: {
+                id: true,
+                name: true
+              }
             }
           }
-        }
-      });
-      return reply.send(clients);
+        }),
+        prisma.clientes.count({ where }),
+      ]);
+
+      return reply.send({ data: clients, pagination: { ...pagination, total, pages: Math.ceil(total / pagination.limit) } });
     } catch (error) {
       return reply.status(400).send({ error: 'Error loading clients' });
     }
@@ -116,7 +127,7 @@ export default new class CustomerController {
     const { id } = req.params;
 
     try {
-      prisma.clientes.delete({
+      await prisma.clientes.delete({
         where: {
           id: parseInt(id)
         }

@@ -1,9 +1,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
-import { Params } from '../../utils/types';
+import { prisma } from '../../lib/prisma';
+import { Params, ListQuery } from '../../utils/types';
+import { parsePagination, buildSearchFilter } from '../../utils/pagination';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
 
 export default new class SupplierController {
   async create(req: FastifyRequest, reply: FastifyReply): Promise<any> {
@@ -27,16 +26,27 @@ export default new class SupplierController {
     }
   }
 
-  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
-    const suppliers = await prisma.fornecedores.findMany({
-      select: {
-        id: true,
-        name: true,
-        contactInfo: true,
-        email: true,
-      },
-    });
-    return reply.send(suppliers);
+  async findAll(req: FastifyRequest<{ Querystring: ListQuery }>, reply: FastifyReply): Promise<any> {
+    const pagination = parsePagination(req.query);
+    const where = buildSearchFilter(req.query.search, ['name', 'email']);
+
+    const [suppliers, total] = await Promise.all([
+      prisma.fornecedores.findMany({
+        where,
+        skip: pagination.skip,
+        take: pagination.limit,
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          contactInfo: true,
+          email: true,
+        },
+      }),
+      prisma.fornecedores.count({ where }),
+    ]);
+
+    return reply.send({ data: suppliers, pagination: { ...pagination, total, pages: Math.ceil(total / pagination.limit) } });
   }
 
   async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
@@ -47,6 +57,11 @@ export default new class SupplierController {
         id: Number(id),
       },
     });
+
+    if (!supplier) {
+      return reply.status(404).send({ error: 'Supplier not found' });
+    }
+
     return reply.send(supplier);
   }
 
@@ -79,7 +94,7 @@ export default new class SupplierController {
     const { id } = req.params;
 
     try {
-      prisma.fornecedores.delete({
+      await prisma.fornecedores.delete({
         where: {
           id: Number(id),
         },

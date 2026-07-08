@@ -1,9 +1,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
-import { Params } from '../../utils/types';
+import { prisma } from '../../lib/prisma';
+import { Params, ListQuery } from '../../utils/types';
+import { parsePagination, buildSearchFilter } from '../../utils/pagination';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
 
 export default new class ProductController {
   async create(req: FastifyRequest, reply: FastifyReply): Promise<any> {
@@ -27,28 +26,39 @@ export default new class ProductController {
     }
   }
 
-  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
-    const products = await prisma.produtos.findMany({
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        price: true,
-        categorias: {
-          select: {
-            id: true,
-            name: true
+  async findAll(req: FastifyRequest<{ Querystring: ListQuery }>, reply: FastifyReply): Promise<any> {
+    const pagination = parsePagination(req.query);
+    const where = buildSearchFilter(req.query.search, ['name', 'description']);
+
+    const [products, total] = await Promise.all([
+      prisma.produtos.findMany({
+        where,
+        skip: pagination.skip,
+        take: pagination.limit,
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          price: true,
+          categorias: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          fornecedores: {
+            select: {
+              id: true,
+              name: true
+            }
           }
         },
-        fornecedores: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      },
-    });
-    return reply.send(products);
+      }),
+      prisma.produtos.count({ where }),
+    ]);
+
+    return reply.send({ data: products, pagination: { ...pagination, total, pages: Math.ceil(total / pagination.limit) } });
   }
 
   async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
@@ -58,6 +68,11 @@ export default new class ProductController {
         id: Number(id),
       },
     });
+
+    if (!product) {
+      return reply.status(404).send({ error: 'Product not found' });
+    }
+
     return reply.send(product);
   }
 

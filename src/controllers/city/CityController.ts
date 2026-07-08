@@ -1,9 +1,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
-import { Params } from '../../utils/types';
+import { prisma } from '../../lib/prisma';
+import { Params, ListQuery } from '../../utils/types';
+import { parsePagination, buildSearchFilter } from '../../utils/pagination';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
 
 export default new class CityController {
   async create(req: FastifyRequest, reply: FastifyReply): Promise<any> {
@@ -36,9 +35,8 @@ export default new class CityController {
       cep: z.string().optional(),
     });
 
-    const data = updateCitySchema.parse(req.body);
-
     try {
+      const data = updateCitySchema.parse(req.body);
       await prisma.cidades.update({
         where: {
           id: Number(id),
@@ -51,9 +49,21 @@ export default new class CityController {
     }
   }
 
-  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
-    const cities = await prisma.cidades.findMany();
-    return reply.send(cities);
+  async findAll(req: FastifyRequest<{ Querystring: ListQuery }>, reply: FastifyReply): Promise<any> {
+    const pagination = parsePagination(req.query);
+    const where = buildSearchFilter(req.query.search, ['name']);
+
+    const [cities, total] = await Promise.all([
+      prisma.cidades.findMany({
+        where,
+        skip: pagination.skip,
+        take: pagination.limit,
+        orderBy: { name: 'asc' },
+      }),
+      prisma.cidades.count({ where }),
+    ]);
+
+    return reply.send({ data: cities, pagination: { ...pagination, total, pages: Math.ceil(total / pagination.limit) } });
   }
 
   async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {

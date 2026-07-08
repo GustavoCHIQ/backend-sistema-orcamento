@@ -1,9 +1,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
-import { Params } from '../../utils/types';
+import { prisma } from '../../lib/prisma';
+import { Params, ListQuery } from '../../utils/types';
+import { parsePagination, buildSearchFilter } from '../../utils/pagination';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
 
 export default new class CategoryController {
   async create(req: FastifyRequest, reply: FastifyReply) {
@@ -23,14 +22,25 @@ export default new class CategoryController {
     reply.status(201).send();
   }
 
-  async findAll(req: FastifyRequest, reply: FastifyReply) {
-    const categories = await prisma.categorias.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
-    });
-    return reply.send(categories);
+  async findAll(req: FastifyRequest<{ Querystring: ListQuery }>, reply: FastifyReply) {
+    const pagination = parsePagination(req.query);
+    const where = buildSearchFilter(req.query.search, ['name']);
+
+    const [categories, total] = await Promise.all([
+      prisma.categorias.findMany({
+        where,
+        skip: pagination.skip,
+        take: pagination.limit,
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+        },
+      }),
+      prisma.categorias.count({ where }),
+    ]);
+
+    return reply.send({ data: categories, pagination: { ...pagination, total, pages: Math.ceil(total / pagination.limit) } });
   }
 
   async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) {
@@ -40,6 +50,11 @@ export default new class CategoryController {
         id: Number(id),
       },
     });
+
+    if (!category) {
+      return reply.status(404).send({ error: 'Category not found' });
+    }
+
     return reply.send(category);
   }
 
@@ -49,8 +64,8 @@ export default new class CategoryController {
       name: z.string().optional(),
     });
 
-    const data = updateCategorySchema.parse(req.body);
     try {
+      const data = updateCategorySchema.parse(req.body);
       await prisma.categorias.update({
         where: {
           id: Number(id),

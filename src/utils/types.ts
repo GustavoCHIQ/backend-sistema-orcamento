@@ -2,8 +2,12 @@ export type Params = {
   id: string;
 };
 
+export type BudgetItemParams = {
+  budgetId: string;
+  itemId: string;
+};
+
 export type CreateBudgetData = {
-  userId: number;
   clientId: number;
   totalPrice?: number;
 }
@@ -15,6 +19,11 @@ export type AddItemData = {
   quantity: number;
   discount?: number;
   totalPrice?: number;
+}
+
+export type UpdateBudgetItemData = {
+  quantity?: number;
+  discount?: number;
 }
 
 export type ApplyDiscountData = {
@@ -37,13 +46,21 @@ export type Login = {
   password: string;
 };
 
-export type Quantity = {
-  quantity: string;
+export type ListQuery = {
+  page?: string;
+  limit?: string;
+  search?: string;
 };
 
-export type CreateBudgetItemBody = {
-  budgetId: string;
-  productId: string;
-  serviceId: string;
-  quantity: string;
+export type BudgetListQuery = {
+  page?: string;
+  limit?: string;
+  status?: string;
+  clientId?: string;
+  userId?: string;
+};
+
+export type DashboardQuery = {
+  from?: string;
+  to?: string;
 };

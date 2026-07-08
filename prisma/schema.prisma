@@ -22,13 +22,17 @@ model Empresa {
 }
 
 model Usuarios {
-  id        Int          @id @default(autoincrement())
-  name      String       @db.VarChar(100)
-  password  String       @db.VarChar(100)
-  email     String       @unique @db.VarChar(60)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  orcamento Orcamentos[]
+  id         Int          @id @default(autoincrement())
+  name       String       @db.VarChar(100)
+  password   String       @db.VarChar(100)
+  email      String       @unique @db.VarChar(60)
+  role       Role         @default(USER)
+  isActive   Boolean      @default(true)
+  lastLogin  DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  orcamento  Orcamentos[]
+  permissoes Permissoes[]
 }
 
 model Clientes {
@@ -45,6 +49,8 @@ model Clientes {
   updatedAt  DateTime     @updatedAt
   orcamentos Orcamentos[]
   cidades    Cidades      @relation(fields: [cityId], references: [id])
+
+  @@index([cityId])
 }
 
 model Cidades {
@@ -67,15 +73,21 @@ model Produtos {
   orcamentoItens OrcamentoItens[]
   categorias     Categorias       @relation(fields: [categoryId], references: [id])
   fornecedores   Fornecedores     @relation(fields: [supplierId], references: [id])
+
+  @@index([categoryId])
+  @@index([supplierId])
 }
 
 model Servicos {
-  id          Int        @id @default(autoincrement())
+  id          Int              @id @default(autoincrement())
   name        String
   description String
   price       Float
   categoryId  Int
-  categorias  Categorias @relation(fields: [categoryId], references: [id])
+  categorias  Categorias       @relation(fields: [categoryId], references: [id])
+  items       OrcamentoItens[]
+
+  @@index([categoryId])
 }
 
 model Categorias {
@@ -95,30 +107,41 @@ model Fornecedores {
 }
 
 model Orcamentos {
-  id         Int              @id @default(autoincrement())
+  id         Int             @id @default(autoincrement())
   userId     Int
   clientId   Int
   totalPrice Float
   discount   Float
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  isApproved Boolean          @default(false)
-  status     StatusOrcamento  @default(negociacao)
-  client     Clientes         @relation(fields: [clientId], references: [id])
-  user       Usuarios         @relation(fields: [userId], references: [id])
-  items      OrcamentoItens[]
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  isApproved Boolean         @default(false)
+  status     StatusOrcamento @default(negociacao)
+
+  client Clientes         @relation(fields: [clientId], references: [id])
+  user   Usuarios         @relation(fields: [userId], references: [id])
+  items  OrcamentoItens[]
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([status])
 }
 
 model OrcamentoItens {
-  id         Int        @id @default(autoincrement())
+  id         Int   @id @default(autoincrement())
   budgetId   Int
   productId  Int?
   serviceId  Int?
-  quantity   Int        @default(1)
-  discount   Float      @default(0)
-  totalPrice Float      @default(0)
+  quantity   Int   @default(1)
+  discount   Float @default(0)
+  totalPrice Float @default(0)
+
   orcamentos Orcamentos @relation(fields: [budgetId], references: [id])
   produtos   Produtos?  @relation(fields: [productId], references: [id])
+  servicos   Servicos?  @relation(fields: [serviceId], references: [id])
+
+  @@index([budgetId])
+  @@index([productId])
+  @@index([serviceId])
 }
 
 enum StatusOrcamento {
@@ -166,4 +189,42 @@ enum Unidades {
   M2LITRO
   M2MLITRO
   M3MLITRO
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  USER
+}
+
+enum TipoPermissao {
+  CRIAR_ORCAMENTO
+  EDITAR_ORCAMENTO
+  EXCLUIR_ORCAMENTO
+  APROVAR_ORCAMENTO
+  VISUALIZAR_ORCAMENTO
+  CRIAR_CLIENTE
+  EDITAR_CLIENTE
+  EXCLUIR_CLIENTE
+  VISUALIZAR_CLIENTE
+  CRIAR_PRODUTO
+  EDITAR_PRODUTO
+  EXCLUIR_PRODUTO
+  VISUALIZAR_PRODUTO
+  CRIAR_SERVICO
+  EDITAR_SERVICO
+  EXCLUIR_SERVICO
+  VISUALIZAR_SERVICO
+  GERENCIAR_USUARIOS
+}
+
+model Permissoes {
+  id        Int           @id @default(autoincrement())
+  tipo      TipoPermissao
+  usuario   Usuarios      @relation(fields: [usuarioId], references: [id])
+  usuarioId Int
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([usuarioId, tipo])
 }

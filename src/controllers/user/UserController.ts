@@ -1,12 +1,9 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
-import { Params, UpdatePasswordBody } from '../../utils/types';
-import bcrypt from 'bcryptjs';
+import { prisma } from '../../lib/prisma';
+import { Params, UpdatePasswordBody, ListQuery } from '../../utils/types';
+import { hashPassword, comparePassword } from '../../utils/password';
+import { parsePagination, buildSearchFilter } from '../../utils/pagination';
 import { z } from 'zod';
-
-require('dotenv').config();
-
-const prisma = new PrismaClient();
 
 export default new class UserController {
   async create(req: FastifyRequest, reply: FastifyReply): Promise<any> {
@@ -18,7 +15,7 @@ export default new class UserController {
 
     try {
       const data = createUserSchema.parse(req.body);
-      const hashedPassword = await bcrypt.hash(data.password, 8);
+      const hashedPassword = await hashPassword(data.password);
 
       const user = await prisma.usuarios.findUnique({
         where: {
@@ -44,17 +41,29 @@ export default new class UserController {
     }
   }
 
-  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
-    const users = await prisma.usuarios.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true
-      }
-    });
+  async findAll(req: FastifyRequest<{ Querystring: ListQuery }>, reply: FastifyReply): Promise<any> {
+    const pagination = parsePagination(req.query);
+    const where = buildSearchFilter(req.query.search, ['name', 'email']);
 
-    return reply.send(users);
+    const [users, total] = await Promise.all([
+      prisma.usuarios.findMany({
+        where,
+        skip: pagination.skip,
+        take: pagination.limit,
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          createdAt: true
+        }
+      }),
+      prisma.usuarios.count({ where }),
+    ]);
+
+    return reply.send({ data: users, pagination: { ...pagination, total, pages: Math.ceil(total / pagination.limit) } });
   }
 
   async findById(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
@@ -84,7 +93,7 @@ export default new class UserController {
     }
   }
 
-  async update(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
+  async updateUser(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
     const updateUserSchema = z.object({
       name: z.string().min(5, 'Name must have at least 5 characters').optional(),
       email: z.string().email('Invalid email format').optional(),
@@ -105,14 +114,13 @@ export default new class UserController {
       if (error instanceof z.ZodError) {
         return reply.status(400).send({ error: error.errors });
       }
+      return reply.status(400).send({ error: 'Error updating user' });
     }
   }
 
   async updatePassword(req: FastifyRequest<{ Params: Params; Body: UpdatePasswordBody }>, reply: FastifyReply): Promise<any> {
     const { id } = req.params;
     const { previousPassword, password, confirmPassword } = req.body;
-
-    const hashedPassword = await bcrypt.hash(password, 8);
 
     const user = await prisma.usuarios.findUnique({
       where: {
@@ -128,11 +136,13 @@ export default new class UserController {
       return reply.status(400).send({ error: 'Passwords do not match' });
     }
 
-    const passwordMatch = await bcrypt.compare(previousPassword, user.password);
+    const passwordMatch = await comparePassword(previousPassword, user.password);
 
     if (!passwordMatch) {
       return reply.status(401).send({ error: 'Invalid password' });
     }
+
+    const hashedPassword = await hashPassword(password);
 
     await prisma.usuarios.update({
       where: {

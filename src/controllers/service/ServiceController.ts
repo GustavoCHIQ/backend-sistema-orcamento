@@ -1,9 +1,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
-import { Params } from '../../utils/types';
+import { prisma } from '../../lib/prisma';
+import { Params, ListQuery } from '../../utils/types';
+import { parsePagination, buildSearchFilter } from '../../utils/pagination';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
 
 export default new class ServiceController {
   async create(req: FastifyRequest, reply: FastifyReply): Promise<any> {
@@ -26,12 +25,22 @@ export default new class ServiceController {
     }
   }
 
-  async findAll(req: FastifyRequest, reply: FastifyReply): Promise<any> {
+  async findAll(req: FastifyRequest<{ Querystring: ListQuery }>, reply: FastifyReply): Promise<any> {
     try {
-      const services = await prisma.servicos.findMany();
+      const pagination = parsePagination(req.query);
+      const where = buildSearchFilter(req.query.search, ['name', 'description']);
 
-      return reply.send(services);
+      const [services, total] = await Promise.all([
+        prisma.servicos.findMany({
+          where,
+          skip: pagination.skip,
+          take: pagination.limit,
+          orderBy: { name: 'asc' },
+        }),
+        prisma.servicos.count({ where }),
+      ]);
 
+      return reply.send({ data: services, pagination: { ...pagination, total, pages: Math.ceil(total / pagination.limit) } });
     } catch (error) {
       return reply.status(500).send({ error: 'Internal server error' });
     }

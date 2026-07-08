@@ -1,9 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../lib/prisma';
 import { Params } from '../../utils/types';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
 
 export default new class CompanyController {
   async create(req: FastifyRequest, reply: FastifyReply): Promise<void> {
