@@ -1,4 +1,3 @@
-import { log } from 'console';
 import { hashPassword } from '../src/utils/password';
 
 (async () => {
@@ -17,7 +16,7 @@ import { hashPassword } from '../src/utils/password';
         cep: '79950000',
       },
     });
-    log("Cidade criada com sucesso 🏙️");
+    console.log("Cidade criada com sucesso 🏙️");
 
     const usuarios = await prisma.usuarios.upsert({
       where: { id: 1 },
@@ -29,7 +28,7 @@ import { hashPassword } from '../src/utils/password';
         role: "ADMIN",
       },
     });
-    log("Usuário criado com sucesso 👤");
+    console.log("Usuário criado com sucesso 👤");
   }
 
   main()

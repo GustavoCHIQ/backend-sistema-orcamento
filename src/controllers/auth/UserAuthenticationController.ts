@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { Login, ForgotPasswordBody, ResetPasswordBody } from '../../utils/types';
 import { comparePassword, hashPassword } from '../../utils/password';
 import { extractToken } from '../../middlewares/JWTAuth';
-import { sendMail } from '../../utils/email';
+import { sendMail, renderEmailLayout } from '../../utils/email';
 import crypto from 'crypto';
 
 // Constantes de segurança
@@ -232,10 +232,19 @@ export default new class UserAuthenticationController {
           await sendMail({
             to: user.email,
             subject: 'Redefinição de senha',
-            html: `<p>Olá, ${user.name}.</p>
-              <p>Recebemos uma solicitação para redefinir sua senha. O link abaixo expira em ${RESET_TOKEN_TTL_MINUTES} minutos:</p>
-              <p><a href="${resetUrl}">${resetUrl}</a></p>
-              <p>Se você não solicitou essa alteração, ignore este e-mail.</p>`,
+            html: renderEmailLayout({
+              title: 'Redefinição de senha',
+              intro: `Olá, ${user.name}. Recebemos uma solicitação para redefinir a senha da sua conta.`,
+              bodyRows: `
+                <tr>
+                  <td style="padding-top:8px; font-size:13px; line-height:1.6; color:#334155;">
+                    Clique no botão abaixo para escolher uma nova senha. Por segurança, este link expira em <strong>${RESET_TOKEN_TTL_MINUTES} minutos</strong>.
+                  </td>
+                </tr>`,
+              ctaLabel: 'Redefinir senha',
+              ctaUrl: resetUrl,
+              footerNote: 'Se você não solicitou essa alteração, pode ignorar este e-mail com segurança — sua senha permanece a mesma.',
+            }),
           });
         } catch (mailError) {
           console.error('Erro ao enviar e-mail de redefinição de senha:', mailError instanceof Error ? mailError.message : 'Erro desconhecido');

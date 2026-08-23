@@ -8,11 +8,11 @@
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "."
   },
   "include": [
     "src/**/*",
-    "/prisma/**/*"
+    "prisma/**/*"
   ],
   "exclude": [
     "node_modules",

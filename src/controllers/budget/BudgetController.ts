@@ -5,7 +5,9 @@ import { Params, AddItemData, ApplyDiscountData, CreateBudgetData, UpdateBudgetD
 import { z } from 'zod';
 import utils from '../products/ProductUtilController';
 import { generateBudgetPdf } from '../../utils/budgetPdf';
-import { sendMail } from '../../utils/email';
+import { sendMail, renderEmailLayout } from '../../utils/email';
+
+const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const ELEVATED_ROLES = ['ADMIN', 'MANAGER'] as const;
 const SELF_DISCOUNT_LIMIT = 10;
@@ -559,14 +561,53 @@ export default new class BudgetController {
 
       const company = await this.loadCompany();
       const pdfBuffer = await generateBudgetPdf({ ...budget, company });
-      const formattedTotal = budget.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const formattedTotal = formatCurrency(budget.totalPrice);
+
+      const itemRows = budget.items.map((item) => {
+        const name = item.produtos?.name ?? item.servicos?.name ?? 'Item removido';
+        return `<tr>
+          <td style="padding:10px 0; font-size:13px; color:#334155; border-bottom:1px solid #e2e8f0; vertical-align:top;">
+            ${name}<br/><span style="font-size:12px; color:#94a3b8;">Qtd: ${item.quantity}</span>
+          </td>
+          <td style="padding:10px 0; font-size:13px; color:#0f172a; text-align:right; border-bottom:1px solid #e2e8f0; white-space:nowrap; vertical-align:top;">
+            ${formatCurrency(item.totalPrice)}
+          </td>
+        </tr>`;
+      }).join('');
+
+      const validityRow = budget.validUntil ? `
+        <tr>
+          <td colspan="2" style="padding-top:16px;">
+            <div style="background-color:#fffbeb; border-radius:8px; padding:10px 14px; font-size:12px; color:#92400e;">
+              ⏳ Válido até <strong>${budget.validUntil.toLocaleDateString('pt-BR')}</strong>
+            </div>
+          </td>
+        </tr>` : '';
+
+      const bodyRows = `
+        <tr>
+          <td style="padding-top:20px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              ${itemRows}
+              <tr>
+                <td style="padding:14px 0 0; font-size:14px; font-weight:700; color:#0f172a;">Total</td>
+                <td style="padding:14px 0 0; font-size:18px; font-weight:700; color:#0f172a; text-align:right;">${formattedTotal}</td>
+              </tr>
+              ${validityRow}
+            </table>
+          </td>
+        </tr>`;
 
       await sendMail({
         to: budget.client.email,
         subject: `Orçamento #${budget.id}${company ? ' - ' + company.name : ''}`,
-        html: `<p>Olá, ${budget.client.name}.</p>
-          <p>Segue em anexo o orçamento solicitado, no valor de ${formattedTotal}.</p>
-          ${budget.validUntil ? `<p>Válido até ${budget.validUntil.toLocaleDateString('pt-BR')}.</p>` : ''}`,
+        html: renderEmailLayout({
+          title: `Orçamento #${budget.id}`,
+          companyName: company?.name,
+          intro: `Olá, ${budget.client.name}. Segue o orçamento solicitado, com o PDF completo em anexo para sua conferência.`,
+          bodyRows,
+          footerNote: company ? `${company.name} · ${company.phone} · ${company.email}` : undefined,
+        }),
         attachments: [{ filename: `orcamento-${budget.id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }],
       });
 

@@ -21,5 +21,15 @@ services:
     depends_on:
       - postgres
 
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: always
+    environment:
+      - MP_SMTP_AUTH_ACCEPT_ANY=1
+      - MP_SMTP_AUTH_ALLOW_INSECURE=1
+    ports:
+      - '1025:1025' # servidor SMTP (usado pela API para enviar e-mails)
+      - '8025:8025' # interface web para visualizar os e-mails enviados
+
 volumes:
   postgres:
