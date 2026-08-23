@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import fastify from 'fastify';
+import fastify, { FastifyError } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
@@ -101,7 +101,7 @@ server.register(swaggerUi, {
 
 server.register(routes, { prefix: '/api/v1' });
 
-server.setErrorHandler((error, request, reply) => {
+server.setErrorHandler<FastifyError>((error, request, reply) => {
   server.log.error(error);
   const statusCode = error.statusCode ?? 500;
 
