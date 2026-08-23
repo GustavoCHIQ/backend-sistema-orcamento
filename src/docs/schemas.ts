@@ -75,6 +75,24 @@ export const loginBodySchema = {
   },
 };
 
+export const forgotPasswordBodySchema = {
+  type: 'object',
+  required: ['email'],
+  properties: {
+    email: { type: 'string', format: 'email' },
+  },
+};
+
+export const resetPasswordBodySchema = {
+  type: 'object',
+  required: ['token', 'password', 'confirmPassword'],
+  properties: {
+    token: { type: 'string', description: 'Token recebido por e-mail em forgot-password' },
+    password: { type: 'string', minLength: 6 },
+    confirmPassword: { type: 'string', minLength: 6 },
+  },
+};
+
 // ---------- City ----------
 export const citySchema = {
   type: 'object',
@@ -380,7 +398,7 @@ export const updateServiceBodySchema = {
 export const serviceListResponseSchema = paginatedResponse(serviceSchema);
 
 // ---------- Budget ----------
-const budgetStatusEnum = ['negociacao', 'aprovado', 'execucao', 'finalizado', 'cancelado', 'perdido'];
+const budgetStatusEnum = ['negociacao', 'aprovado', 'execucao', 'finalizado', 'cancelado', 'perdido', 'expirado'];
 
 export const budgetItemSchema = {
   type: 'object',
@@ -405,6 +423,7 @@ export const budgetSummarySchema = {
     discount: { type: 'number' },
     status: { type: 'string', enum: budgetStatusEnum },
     isApproved: { type: 'boolean' },
+    validUntil: { type: 'string', format: 'date-time', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
   },
 };
@@ -419,6 +438,8 @@ export const budgetDetailSchema = {
     discount: { type: 'number' },
     status: { type: 'string', enum: budgetStatusEnum },
     isApproved: { type: 'boolean' },
+    validUntil: { type: 'string', format: 'date-time', nullable: true },
+    sentAt: { type: 'string', format: 'date-time', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
     items: { type: 'array', items: budgetItemSchema },
@@ -442,6 +463,15 @@ export const createBudgetBodySchema = {
   properties: {
     clientId: { type: 'integer', minimum: 1 },
     totalPrice: { type: 'number', minimum: 0 },
+    validUntil: { type: 'string', format: 'date-time', description: 'Data de validade (ISO 8601). Padrão: 15 dias a partir da criação.' },
+  },
+};
+
+export const sendBudgetResponseSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'integer' },
+    sentAt: { type: 'string', format: 'date-time' },
   },
 };
 
@@ -509,6 +539,12 @@ export const budgetListResponseSchema = paginatedResponse({
     },
   ],
 });
+
+export const budgetPdfResponseSchema = {
+  type: 'string',
+  format: 'binary',
+  description: 'Arquivo PDF (application/pdf) do orçamento',
+};
 
 // ---------- Dashboard ----------
 export const dashboardQuerySchema = {

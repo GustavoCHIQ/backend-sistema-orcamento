@@ -22,17 +22,31 @@ model Empresa {
 }
 
 model Usuarios {
-  id         Int          @id @default(autoincrement())
-  name       String       @db.VarChar(100)
-  password   String       @db.VarChar(100)
-  email      String       @unique @db.VarChar(60)
-  role       Role         @default(USER)
-  isActive   Boolean      @default(true)
-  lastLogin  DateTime?
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  orcamento  Orcamentos[]
-  permissoes Permissoes[]
+  id                  Int                  @id @default(autoincrement())
+  name                String               @db.VarChar(100)
+  password            String               @db.VarChar(100)
+  email               String               @unique @db.VarChar(60)
+  role                Role                 @default(USER)
+  isActive            Boolean              @default(true)
+  lastLogin           DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  orcamento           Orcamentos[]
+  permissoes          Permissoes[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  tokenHash String    @unique @db.VarChar(64)
+  userId    Int
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user Usuarios @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 model Clientes {
@@ -116,6 +130,8 @@ model Orcamentos {
   updatedAt  DateTime        @updatedAt
   isApproved Boolean         @default(false)
   status     StatusOrcamento @default(negociacao)
+  validUntil DateTime?
+  sentAt     DateTime?
 
   client Clientes         @relation(fields: [clientId], references: [id])
   user   Usuarios         @relation(fields: [userId], references: [id])
@@ -151,6 +167,7 @@ enum StatusOrcamento {
   finalizado
   cancelado
   perdido
+  expirado
 }
 
 enum TipoCliente {

@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply, FastifyInstance } from "fastify";
-import { Params, UpdatePasswordBody, CreateBudgetData, AddItemData, ApplyDiscountData, UpdateBudgetData, Login, ListQuery, BudgetItemParams, UpdateBudgetItemData, DashboardQuery, BudgetListQuery } from "./utils/types";
+import { Params, UpdatePasswordBody, CreateBudgetData, AddItemData, ApplyDiscountData, UpdateBudgetData, Login, ListQuery, BudgetItemParams, UpdateBudgetItemData, DashboardQuery, BudgetListQuery, ForgotPasswordBody, ResetPasswordBody } from "./utils/types";
 import CityController from "./controllers/city/CityController";
 import ProductController from "./controllers/products/ProductController";
 import CategoryController from "./controllers/category/CategoryController";
@@ -106,6 +106,14 @@ export async function routes(server: FastifyInstance) {
   server.post('/users/login', {
     schema: { tags: ['Auth'], summary: 'Autentica e define o cookie access_token', body: docs.loginBodySchema, response: { 200: docs.emptyResponseSchema, 401: docs.errorResponseSchema, 429: docs.errorResponseSchema } },
   }, async (req: FastifyRequest<{ Params: Params; Body: Login }>, reply: FastifyReply) => { await UserAuthenticationController.login(req, reply); });
+
+  server.post<{ Body: ForgotPasswordBody }>('/users/forgot-password', {
+    schema: { tags: ['Auth'], summary: 'Solicita o envio de um link de redefinição de senha por e-mail', body: docs.forgotPasswordBodySchema, response: { 200: docs.emptyResponseSchema, 429: docs.errorResponseSchema } },
+  }, async (req: FastifyRequest<{ Body: ForgotPasswordBody }>, reply: FastifyReply) => { await UserAuthenticationController.forgotPassword(req, reply); });
+
+  server.post<{ Body: ResetPasswordBody }>('/users/reset-password', {
+    schema: { tags: ['Auth'], summary: 'Redefine a senha a partir do token recebido por e-mail', body: docs.resetPasswordBodySchema, response: { 200: docs.emptyResponseSchema, 400: docs.errorResponseSchema } },
+  }, async (req: FastifyRequest<{ Body: ResetPasswordBody }>, reply: FastifyReply) => { await UserAuthenticationController.resetPassword(req, reply); });
 
   server.post('/users/checktoken', {
     schema: { tags: ['Auth'], summary: 'Valida o token atual (cookie ou header Authorization)', response: { 200: docs.emptyResponseSchema, 401: docs.errorResponseSchema } },
@@ -255,6 +263,21 @@ export async function routes(server: FastifyInstance) {
     onRequest: [verifyJwt],
     schema: { tags: ['Budgets'], summary: 'Busca orçamento por ID (dono ou MANAGER/ADMIN)', security: auth, params: docs.idParamSchema, response: { 200: docs.budgetDetailSchema, ...errorResponses } },
   }, async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await BudgetController.findById(req, reply) });
+
+  server.get<{ Params: Params }>("/budgets/:id/pdf", {
+    onRequest: [verifyJwt],
+    schema: { tags: ['Budgets'], summary: 'Gera o PDF do orçamento para download (dono ou MANAGER/ADMIN)', security: auth, params: docs.idParamSchema, response: { 200: docs.budgetPdfResponseSchema, ...errorResponses } },
+  }, async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await BudgetController.generatePdf(req, reply) });
+
+  server.post<{ Params: Params }>("/budgets/:id/send", {
+    onRequest: [verifyJwt],
+    schema: { tags: ['Budgets'], summary: 'Envia o orçamento em PDF por e-mail ao cliente (dono ou MANAGER/ADMIN)', security: auth, params: docs.idParamSchema, response: { 200: docs.sendBudgetResponseSchema, ...errorResponses } },
+  }, async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await BudgetController.sendByEmail(req, reply) });
+
+  server.post<{ Params: Params }>("/budgets/:id/duplicate", {
+    onRequest: [verifyJwt],
+    schema: { tags: ['Budgets'], summary: 'Duplica um orçamento existente com os preços atuais do catálogo (dono ou MANAGER/ADMIN)', security: auth, params: docs.idParamSchema, response: { 201: docs.budgetSummarySchema, ...errorResponses } },
+  }, async (req: FastifyRequest<{ Params: Params }>, reply: FastifyReply) => { await BudgetController.duplicate(req, reply) });
 
   server.patch<{ Params: Params; Body: UpdateBudgetData }>("/budgets/:id", {
     onRequest: [verifyJwt, managerOrAdmin],

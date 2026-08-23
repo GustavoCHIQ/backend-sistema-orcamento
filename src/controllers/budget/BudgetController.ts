@@ -4,14 +4,18 @@ import { prisma } from '../../lib/prisma';
 import { Params, AddItemData, ApplyDiscountData, CreateBudgetData, UpdateBudgetData, UpdateBudgetItemData, BudgetItemParams, BudgetListQuery } from '../../utils/types';
 import { z } from 'zod';
 import utils from '../products/ProductUtilController';
+import { generateBudgetPdf } from '../../utils/budgetPdf';
+import { sendMail } from '../../utils/email';
 
 const ELEVATED_ROLES = ['ADMIN', 'MANAGER'] as const;
 const SELF_DISCOUNT_LIMIT = 10;
+const DEFAULT_VALIDITY_DAYS = 15;
 
 // Schemas de validação com Zod mais robustos
 const createBudgetSchema = z.object({
   clientId: z.number({ required_error: 'ID do cliente é obrigatório' }).int().positive('ID do cliente deve ser positivo'),
   totalPrice: z.number().nonnegative('Preço total não pode ser negativo').optional(),
+  validUntil: z.string().datetime({ message: 'Data de validade inválida (use ISO 8601)' }).optional(),
 });
 
 const addItemSchema = z.object({
@@ -49,8 +53,9 @@ export default new class BudgetController {
   async createBudget(req: FastifyRequest<{ Body: CreateBudgetData }>, reply: FastifyReply): Promise<any> {
     try {
       const validatedData = createBudgetSchema.parse(req.body);
-      const { clientId, totalPrice = 0 } = validatedData;
+      const { clientId, totalPrice = 0, validUntil } = validatedData;
       const userId = req.user.id;
+      const budgetValidUntil = validUntil ? new Date(validUntil) : new Date(Date.now() + DEFAULT_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
 
       return await prisma.$transaction(async (tx) => {
         const client = await tx.clientes.findUnique({ where: { id: clientId } });
@@ -66,6 +71,7 @@ export default new class BudgetController {
             totalPrice,
             discount: 0,
             status: 'negociacao',
+            validUntil: budgetValidUntil,
           },
           select: {
             id: true,
@@ -74,6 +80,7 @@ export default new class BudgetController {
             totalPrice: true,
             discount: true,
             status: true,
+            validUntil: true,
             createdAt: true
           }
         });
@@ -86,12 +93,90 @@ export default new class BudgetController {
   }
 
   /**
+   * Duplica um orçamento existente (dono ou MANAGER/ADMIN), recalculando os itens
+   * pelos preços atuais do catálogo. Útil para reaproveitar um orçamento parecido
+   * sem recriar tudo manualmente.
+   */
+  async duplicate(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
+    try {
+      const { id } = req.params;
+
+      if (!id || isNaN(Number(id)) || Number(id) <= 0) {
+        throw { status: 400, message: 'ID de orçamento inválido' };
+      }
+
+      return await prisma.$transaction(async (tx) => {
+        const original = await tx.orcamentos.findUnique({ where: { id: Number(id) }, include: { items: true } });
+
+        if (!original) {
+          throw { status: 404, message: 'Orçamento não encontrado' };
+        }
+
+        this.assertCanAccessBudget(req, original.userId);
+
+        const validUntil = new Date(Date.now() + DEFAULT_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
+
+        const newBudget = await tx.orcamentos.create({
+          data: {
+            userId: req.user.id,
+            clientId: original.clientId,
+            totalPrice: 0,
+            discount: 0,
+            status: 'negociacao',
+            validUntil,
+          },
+        });
+
+        for (const item of original.items) {
+          const itemPrice = await utils.getItemPrice(item.productId, item.serviceId, tx);
+          const totalPrice = (itemPrice * item.quantity) * (1 - item.discount / 100);
+
+          await tx.orcamentoItens.create({
+            data: {
+              budgetId: newBudget.id,
+              productId: item.productId,
+              serviceId: item.serviceId,
+              quantity: item.quantity,
+              discount: item.discount,
+              totalPrice,
+            },
+          });
+        }
+
+        if (original.items.length > 0) {
+          await utils.recalculateBudgetTotal(newBudget.id, tx);
+        }
+
+        const result = await tx.orcamentos.findUnique({
+          where: { id: newBudget.id },
+          select: {
+            id: true,
+            userId: true,
+            clientId: true,
+            totalPrice: true,
+            discount: true,
+            status: true,
+            validUntil: true,
+            createdAt: true,
+          },
+        });
+
+        return reply.status(201).send(result);
+      });
+    } catch (error) {
+      return this.handleError(error, reply);
+    }
+  }
+
+  /**
    * Adiciona um item ao orçamento (somente o dono do orçamento ou MANAGER/ADMIN)
    */
   async addItem(req: FastifyRequest<{ Body: AddItemData }>, reply: FastifyReply): Promise<any> {
     try {
       const validatedData = addItemSchema.parse(req.body);
       const { budgetId, productId, serviceId, quantity, discount = 0 } = validatedData;
+
+      await this.expireStaleBudgets();
 
       return await prisma.$transaction(async (tx) => {
         const budget = await tx.orcamentos.findUnique({ where: { id: budgetId } });
@@ -101,10 +186,7 @@ export default new class BudgetController {
         }
 
         this.assertCanAccessBudget(req, budget.userId);
-
-        if (budget.isApproved) {
-          throw { status: 400, message: 'Não é possível modificar um orçamento já aprovado' };
-        }
+        this.assertBudgetEditable(budget);
 
         if (productId) {
           const product = await tx.produtos.findUnique({ where: { id: productId } });
@@ -172,6 +254,8 @@ export default new class BudgetController {
 
       const validatedData = updateItemSchema.parse(req.body);
 
+      await this.expireStaleBudgets();
+
       return await prisma.$transaction(async (tx) => {
         const budget = await tx.orcamentos.findUnique({ where: { id: budgetId } });
 
@@ -180,10 +264,7 @@ export default new class BudgetController {
         }
 
         this.assertCanAccessBudget(req, budget.userId);
-
-        if (budget.isApproved) {
-          throw { status: 400, message: 'Não é possível modificar um orçamento já aprovado' };
-        }
+        this.assertBudgetEditable(budget);
 
         const item = await tx.orcamentoItens.findUnique({ where: { id: itemId } });
 
@@ -231,6 +312,8 @@ export default new class BudgetController {
         throw { status: 400, message: 'ID de orçamento ou item inválido' };
       }
 
+      await this.expireStaleBudgets();
+
       return await prisma.$transaction(async (tx) => {
         const budget = await tx.orcamentos.findUnique({ where: { id: budgetId } });
 
@@ -239,10 +322,7 @@ export default new class BudgetController {
         }
 
         this.assertCanAccessBudget(req, budget.userId);
-
-        if (budget.isApproved) {
-          throw { status: 400, message: 'Não é possível modificar um orçamento já aprovado' };
-        }
+        this.assertBudgetEditable(budget);
 
         const item = await tx.orcamentoItens.findUnique({ where: { id: itemId } });
 
@@ -269,6 +349,8 @@ export default new class BudgetController {
       const validatedData = applyDiscountSchema.parse(req.body);
       const { budgetId, discount } = validatedData;
 
+      await this.expireStaleBudgets();
+
       return await prisma.$transaction(async (tx) => {
         const budget = await tx.orcamentos.findUnique({ where: { id: budgetId } });
 
@@ -276,9 +358,7 @@ export default new class BudgetController {
           throw { status: 404, message: 'Orçamento não encontrado' };
         }
 
-        if (budget.isApproved) {
-          throw { status: 400, message: 'Não é possível modificar um orçamento já aprovado' };
-        }
+        this.assertBudgetEditable(budget);
 
         const isOwner = budget.userId === req.user.id;
         const isElevated = ELEVATED_ROLES.includes(req.user.role as typeof ELEVATED_ROLES[number]);
@@ -321,6 +401,8 @@ export default new class BudgetController {
       const limit = Math.min(parseInt(req.query.limit || '20'), 100); // Limita o tamanho máximo da página
       const skip = (page - 1) * limit;
 
+      await this.expireStaleBudgets();
+
       const filter: Prisma.OrcamentosWhereInput = {};
 
       if (req.query.status) {
@@ -355,6 +437,7 @@ export default new class BudgetController {
             discount: true,
             createdAt: true,
             isApproved: true,
+            validUntil: true,
             user: {
               select: {
                 id: true,
@@ -400,64 +483,9 @@ export default new class BudgetController {
         throw { status: 400, message: 'ID de orçamento inválido' };
       }
 
-      const budget = await prisma.orcamentos.findUnique({
-        where: {
-          id: Number(id),
-        },
-        select: {
-          id: true,
-          userId: true,
-          clientId: true,
-          totalPrice: true,
-          discount: true,
-          status: true,
-          isApproved: true,
-          createdAt: true,
-          updatedAt: true,
-          items: {
-            select: {
-              id: true,
-              productId: true,
-              serviceId: true,
-              quantity: true,
-              discount: true,
-              totalPrice: true,
-              produtos: {
-                select: {
-                  id: true,
-                  name: true,
-                  price: true,
-                  description: true,
-                },
-              },
-              servicos: {
-                select: {
-                  id: true,
-                  name: true,
-                  price: true,
-                  description: true,
-                }
-              }
-            },
-          },
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            }
-          },
-          client: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-              address: true,
-            }
-          }
-        },
-      });
+      await this.expireStaleBudgets();
+
+      const budget = await this.loadBudgetDetail(Number(id));
 
       if (!budget) {
         throw { status: 404, message: 'Orçamento não encontrado' };
@@ -466,6 +494,89 @@ export default new class BudgetController {
       this.assertCanAccessBudget(req, budget.userId);
 
       return reply.status(200).send(budget);
+    } catch (error) {
+      return this.handleError(error, reply);
+    }
+  }
+
+  /**
+   * Gera o PDF do orçamento (dono ou MANAGER/ADMIN) para download.
+   */
+  async generatePdf(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
+    try {
+      const { id } = req.params;
+
+      if (!id || isNaN(Number(id)) || Number(id) <= 0) {
+        throw { status: 400, message: 'ID de orçamento inválido' };
+      }
+
+      await this.expireStaleBudgets();
+
+      const budget = await this.loadBudgetDetail(Number(id));
+
+      if (!budget) {
+        throw { status: 404, message: 'Orçamento não encontrado' };
+      }
+
+      this.assertCanAccessBudget(req, budget.userId);
+
+      const pdfBuffer = await generateBudgetPdf({ ...budget, company: await this.loadCompany() });
+
+      reply
+        .header('Content-Type', 'application/pdf')
+        .header('Content-Disposition', `attachment; filename="orcamento-${budget.id}.pdf"`);
+
+      return reply.status(200).send(pdfBuffer);
+    } catch (error) {
+      return this.handleError(error, reply);
+    }
+  }
+
+  /**
+   * Envia o orçamento por e-mail ao cliente, em PDF anexado (dono ou MANAGER/ADMIN).
+   */
+  async sendByEmail(req: FastifyRequest<{ Params: Params }>, reply: FastifyReply): Promise<any> {
+    try {
+      const { id } = req.params;
+
+      if (!id || isNaN(Number(id)) || Number(id) <= 0) {
+        throw { status: 400, message: 'ID de orçamento inválido' };
+      }
+
+      await this.expireStaleBudgets();
+
+      const budget = await this.loadBudgetDetail(Number(id));
+
+      if (!budget) {
+        throw { status: 404, message: 'Orçamento não encontrado' };
+      }
+
+      this.assertCanAccessBudget(req, budget.userId);
+
+      if (budget.items.length === 0) {
+        throw { status: 400, message: 'Não é possível enviar um orçamento sem itens' };
+      }
+
+      const company = await this.loadCompany();
+      const pdfBuffer = await generateBudgetPdf({ ...budget, company });
+      const formattedTotal = budget.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      await sendMail({
+        to: budget.client.email,
+        subject: `Orçamento #${budget.id}${company ? ' - ' + company.name : ''}`,
+        html: `<p>Olá, ${budget.client.name}.</p>
+          <p>Segue em anexo o orçamento solicitado, no valor de ${formattedTotal}.</p>
+          ${budget.validUntil ? `<p>Válido até ${budget.validUntil.toLocaleDateString('pt-BR')}.</p>` : ''}`,
+        attachments: [{ filename: `orcamento-${budget.id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }],
+      });
+
+      const updated = await prisma.orcamentos.update({
+        where: { id: budget.id },
+        data: { sentAt: new Date() },
+        select: { id: true, sentAt: true },
+      });
+
+      return reply.status(200).send(updated);
     } catch (error) {
       return this.handleError(error, reply);
     }
@@ -485,6 +596,8 @@ export default new class BudgetController {
       const validatedData = updateBudgetSchema.parse(req.body);
       const { isApproved } = validatedData;
 
+      await this.expireStaleBudgets();
+
       return await prisma.$transaction(async (tx) => {
         const budget = await tx.orcamentos.findUnique({
           where: { id: Number(id) },
@@ -498,6 +611,8 @@ export default new class BudgetController {
         if (budget.items.length === 0) {
           throw { status: 400, message: 'Não é possível aprovar um orçamento sem itens' };
         }
+
+        this.assertBudgetEditable(budget);
 
         const updatedBudget = await tx.orcamentos.update({
           where: { id: Number(id) },
@@ -531,6 +646,74 @@ export default new class BudgetController {
     if (!isOwner && !isElevated) {
       throw { status: 403, message: 'Permissão negada para este orçamento' };
     }
+  }
+
+  /**
+   * Bloqueia edição de orçamentos já aprovados ou expirados.
+   */
+  private assertBudgetEditable(budget: { isApproved: boolean; status: StatusOrcamento }): void {
+    if (budget.isApproved) {
+      throw { status: 400, message: 'Não é possível modificar um orçamento já aprovado' };
+    }
+    if (budget.status === 'expirado') {
+      throw { status: 400, message: 'Não é possível modificar um orçamento expirado' };
+    }
+  }
+
+  /**
+   * Marca como "expirado" todo orçamento em negociação cuja validade já passou.
+   * Chamado antes de qualquer leitura/edição para manter o status sempre atualizado
+   * sem depender de um job agendado.
+   */
+  private async expireStaleBudgets(): Promise<void> {
+    await prisma.orcamentos.updateMany({
+      where: { status: 'negociacao', validUntil: { lt: new Date() } },
+      data: { status: 'expirado' },
+    });
+  }
+
+  /**
+   * Carrega os dados completos de um orçamento (itens, cliente, responsável) usados
+   * tanto pela consulta por ID quanto pela geração de PDF/envio por e-mail.
+   */
+  private async loadBudgetDetail(id: number) {
+    return prisma.orcamentos.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        clientId: true,
+        totalPrice: true,
+        discount: true,
+        status: true,
+        isApproved: true,
+        validUntil: true,
+        sentAt: true,
+        createdAt: true,
+        updatedAt: true,
+        items: {
+          select: {
+            id: true,
+            productId: true,
+            serviceId: true,
+            quantity: true,
+            discount: true,
+            totalPrice: true,
+            produtos: { select: { id: true, name: true, price: true, description: true } },
+            servicos: { select: { id: true, name: true, price: true, description: true } },
+          },
+        },
+        user: { select: { id: true, name: true, email: true } },
+        client: { select: { id: true, name: true, email: true, phone: true, address: true } },
+      },
+    });
+  }
+
+  /**
+   * Carrega os dados da empresa para o cabeçalho do PDF (registro único, id fixo 1).
+   */
+  private async loadCompany() {
+    return prisma.empresa.findUnique({ where: { id: 1 } });
   }
 
   /**

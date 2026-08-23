@@ -1,9 +1,10 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../../lib/prisma';
 import jwt from 'jsonwebtoken';
-import { Login } from '../../utils/types';
-import { comparePassword } from '../../utils/password';
+import { Login, ForgotPasswordBody, ResetPasswordBody } from '../../utils/types';
+import { comparePassword, hashPassword } from '../../utils/password';
 import { extractToken } from '../../middlewares/JWTAuth';
+import { sendMail } from '../../utils/email';
 import crypto from 'crypto';
 
 // Constantes de segurança
@@ -11,6 +12,7 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_TIMEOUT_MINUTES = 15;
 const JWT_ALGORITHM = 'HS256';
 const JWT_EXPIRATION = '8h';
+const RESET_TOKEN_TTL_MINUTES = 30;
 
 // Cache para controle de tentativas de login (em produção, usar Redis)
 const loginAttempts: Record<string, { count: number; lastAttempt: number }> = {};
@@ -190,6 +192,108 @@ export default new class UserAuthenticationController {
     }
   }
   
+  /**
+   * Solicita a redefinição de senha. Sempre responde de forma genérica,
+   * para não revelar se o e-mail está cadastrado (evita enumeração de usuários).
+   */
+  async forgotPassword(req: FastifyRequest<{ Body: ForgotPasswordBody }>, reply: FastifyReply): Promise<any> {
+    const genericResponse = { message: 'Se o e-mail existir, um link de redefinição de senha foi enviado.' };
+
+    try {
+      const { email } = req.body;
+
+      if (!email || typeof email !== 'string') {
+        return reply.status(400).send({ error: 'E-mail é obrigatório' });
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+      const ipAddress = req.ip || 'unknown';
+      const attemptKey = `forgot:${ipAddress}:${normalizedEmail}`;
+
+      if (this.isRateLimited(attemptKey)) {
+        return reply.status(429).send({ error: 'Muitas solicitações. Tente novamente mais tarde.' });
+      }
+      this.recordFailedAttempt(attemptKey);
+
+      const user = await prisma.usuarios.findUnique({ where: { email: normalizedEmail } });
+
+      if (user && user.isActive) {
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+        const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+
+        await prisma.passwordResetToken.create({
+          data: { userId: user.id, tokenHash, expiresAt },
+        });
+
+        const resetUrl = `${process.env.FRONTEND_URL || ''}/reset-password?token=${rawToken}`;
+
+        try {
+          await sendMail({
+            to: user.email,
+            subject: 'Redefinição de senha',
+            html: `<p>Olá, ${user.name}.</p>
+              <p>Recebemos uma solicitação para redefinir sua senha. O link abaixo expira em ${RESET_TOKEN_TTL_MINUTES} minutos:</p>
+              <p><a href="${resetUrl}">${resetUrl}</a></p>
+              <p>Se você não solicitou essa alteração, ignore este e-mail.</p>`,
+          });
+        } catch (mailError) {
+          console.error('Erro ao enviar e-mail de redefinição de senha:', mailError instanceof Error ? mailError.message : 'Erro desconhecido');
+        }
+      }
+
+      return reply.status(200).send(genericResponse);
+    } catch (error) {
+      console.error('Erro em forgotPassword:', error instanceof Error ? error.message : 'Erro desconhecido');
+      // Mesmo em erro interno, não revela informação — mas sinaliza falha genérica
+      return reply.status(200).send(genericResponse);
+    }
+  }
+
+  /**
+   * Redefine a senha a partir de um token válido gerado por forgotPassword.
+   */
+  async resetPassword(req: FastifyRequest<{ Body: ResetPasswordBody }>, reply: FastifyReply): Promise<any> {
+    try {
+      const { token, password, confirmPassword } = req.body;
+
+      if (!token || typeof token !== 'string' || !password || !confirmPassword) {
+        return reply.status(400).send({ error: 'Dados de entrada inválidos' });
+      }
+
+      if (password !== confirmPassword) {
+        return reply.status(400).send({ error: 'As senhas não coincidem' });
+      }
+
+      if (password.length < 6) {
+        return reply.status(400).send({ error: 'A senha deve ter ao menos 6 caracteres' });
+      }
+
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const resetToken = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+
+      if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
+        return reply.status(400).send({ error: 'Token inválido ou expirado' });
+      }
+
+      const hashedPassword = await hashPassword(password);
+
+      await prisma.$transaction([
+        prisma.usuarios.update({ where: { id: resetToken.userId }, data: { password: hashedPassword } }),
+        // Invalida este e qualquer outro token de reset pendente do mesmo usuário
+        prisma.passwordResetToken.updateMany({
+          where: { userId: resetToken.userId, usedAt: null },
+          data: { usedAt: new Date() },
+        }),
+      ]);
+
+      return reply.status(200).send({ message: 'Senha redefinida com sucesso' });
+    } catch (error) {
+      console.error('Erro em resetPassword:', error instanceof Error ? error.message : 'Erro desconhecido');
+      return reply.status(500).send({ error: 'Erro interno do servidor' });
+    }
+  }
+
   /**
    * Métodos auxiliares para proteção contra força bruta
    */

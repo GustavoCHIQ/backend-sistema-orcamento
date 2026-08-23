@@ -10,6 +10,7 @@ export type BudgetItemParams = {
 export type CreateBudgetData = {
   clientId: number;
   totalPrice?: number;
+  validUntil?: string;
 }
 
 export type AddItemData = {
@@ -44,6 +45,16 @@ export type UpdatePasswordBody = {
 export type Login = {
   email: string;
   password: string;
+};
+
+export type ForgotPasswordBody = {
+  email: string;
+};
+
+export type ResetPasswordBody = {
+  token: string;
+  password: string;
+  confirmPassword: string;
 };
 
 export type ListQuery = {
