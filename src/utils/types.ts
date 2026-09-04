@@ -75,3 +75,14 @@ export type DashboardQuery = {
   from?: string;
   to?: string;
 };
+
+export type AuditLogQuery = {
+  page?: string;
+  limit?: string;
+  userId?: string;
+  entity?: string;
+  entityId?: string;
+  action?: string;
+  from?: string;
+  to?: string;
+};

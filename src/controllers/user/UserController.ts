@@ -3,6 +3,7 @@ import { prisma } from '../../lib/prisma';
 import { Params, UpdatePasswordBody, ListQuery } from '../../utils/types';
 import { hashPassword, comparePassword } from '../../utils/password';
 import { parsePagination, buildSearchFilter } from '../../utils/pagination';
+import { recordAudit } from '../../utils/auditLog';
 import { z } from 'zod';
 
 export default new class UserController {
@@ -27,12 +28,21 @@ export default new class UserController {
         return reply.status(400).send({ error: 'User already exists' });
       }
 
-      await prisma.usuarios.create({
+      const newUser = await prisma.usuarios.create({
         data: {
           name: data.name,
           email: data.email,
           password: hashedPassword,
         },
+      });
+
+      await recordAudit({
+        userId: req.user.id,
+        action: 'user.create',
+        entity: 'Usuarios',
+        entityId: newUser.id,
+        changes: { name: newUser.name, email: newUser.email, role: newUser.role },
+        ipAddress: req.ip,
       });
 
       reply.status(201).send({ message: 'User created successfully' });
@@ -103,12 +113,27 @@ export default new class UserController {
       const { id } = req.params;
       const data = updateUserSchema.parse(req.body);
 
+      const before = await prisma.usuarios.findUnique({
+        where: { id: Number(id) },
+        select: { name: true, email: true },
+      });
+
       await prisma.usuarios.update({
         where: {
           id: Number(id),
         },
         data,
       });
+
+      await recordAudit({
+        userId: req.user.id,
+        action: 'user.update',
+        entity: 'Usuarios',
+        entityId: Number(id),
+        changes: { before, after: data },
+        ipAddress: req.ip,
+      });
+
       return reply.send();
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -153,6 +178,14 @@ export default new class UserController {
       },
     });
 
+    await recordAudit({
+      userId: req.user.id,
+      action: 'user.update_password',
+      entity: 'Usuarios',
+      entityId: Number(id),
+      ipAddress: req.ip,
+    });
+
     return reply.send({ message: 'Password updated successfully' });
   }
 
@@ -174,6 +207,15 @@ export default new class UserController {
         where: {
           id: Number(id)
         }
+      });
+
+      await recordAudit({
+        userId: req.user.id,
+        action: 'user.delete',
+        entity: 'Usuarios',
+        entityId: Number(id),
+        changes: { name: usuario.name, email: usuario.email, role: usuario.role },
+        ipAddress: req.ip,
       });
 
       return reply.status(204).send();

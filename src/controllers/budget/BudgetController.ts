@@ -6,6 +6,7 @@ import { z } from 'zod';
 import utils from '../products/ProductUtilController';
 import { generateBudgetPdf } from '../../utils/budgetPdf';
 import { sendMail, renderEmailLayout } from '../../utils/email';
+import { recordAudit } from '../../utils/auditLog';
 
 const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -87,6 +88,15 @@ export default new class BudgetController {
           }
         });
 
+        await recordAudit({
+          userId: req.user.id,
+          action: 'budget.create',
+          entity: 'Orcamentos',
+          entityId: newBudget.id,
+          changes: { clientId, totalPrice, validUntil: budgetValidUntil },
+          ipAddress: req.ip,
+        }, tx);
+
         return reply.status(201).send(newBudget);
       });
     } catch (err) {
@@ -163,6 +173,15 @@ export default new class BudgetController {
           },
         });
 
+        await recordAudit({
+          userId: req.user.id,
+          action: 'budget.duplicate',
+          entity: 'Orcamentos',
+          entityId: newBudget.id,
+          changes: { sourceBudgetId: original.id },
+          ipAddress: req.ip,
+        }, tx);
+
         return reply.status(201).send(result);
       });
     } catch (error) {
@@ -235,6 +254,15 @@ export default new class BudgetController {
         // Recalcula o total do orçamento dentro da mesma transação (enxerga o item recém-criado)
         await utils.recalculateBudgetTotal(budgetId, tx);
 
+        await recordAudit({
+          userId: req.user.id,
+          action: 'budget.add_item',
+          entity: 'Orcamentos',
+          entityId: budgetId,
+          changes: { itemId: newItem.id, productId, serviceId, quantity, discount },
+          ipAddress: req.ip,
+        }, tx);
+
         return reply.status(201).send(newItem);
       });
     } catch (error) {
@@ -295,6 +323,19 @@ export default new class BudgetController {
 
         await utils.recalculateBudgetTotal(budgetId, tx);
 
+        await recordAudit({
+          userId: req.user.id,
+          action: 'budget.update_item',
+          entity: 'Orcamentos',
+          entityId: budgetId,
+          changes: {
+            itemId,
+            before: { quantity: item.quantity, discount: item.discount },
+            after: { quantity, discount },
+          },
+          ipAddress: req.ip,
+        }, tx);
+
         return reply.status(200).send(updatedItem);
       });
     } catch (error) {
@@ -334,6 +375,15 @@ export default new class BudgetController {
 
         await tx.orcamentoItens.delete({ where: { id: itemId } });
         await utils.recalculateBudgetTotal(budgetId, tx);
+
+        await recordAudit({
+          userId: req.user.id,
+          action: 'budget.remove_item',
+          entity: 'Orcamentos',
+          entityId: budgetId,
+          changes: { itemId, productId: item.productId, serviceId: item.serviceId, quantity: item.quantity },
+          ipAddress: req.ip,
+        }, tx);
 
         return reply.status(204).send();
       });
@@ -375,6 +425,15 @@ export default new class BudgetController {
         });
 
         await utils.recalculateBudgetTotal(budgetId, tx);
+
+        await recordAudit({
+          userId: req.user.id,
+          action: 'budget.apply_discount',
+          entity: 'Orcamentos',
+          entityId: budgetId,
+          changes: { before: budget.discount, after: discount },
+          ipAddress: req.ip,
+        }, tx);
 
         const updatedBudget = await tx.orcamentos.findUnique({
           where: { id: budgetId },
@@ -617,6 +676,15 @@ export default new class BudgetController {
         select: { id: true, sentAt: true },
       });
 
+      await recordAudit({
+        userId: req.user.id,
+        action: 'budget.send_email',
+        entity: 'Orcamentos',
+        entityId: budget.id,
+        changes: { to: budget.client.email },
+        ipAddress: req.ip,
+      });
+
       return reply.status(200).send(updated);
     } catch (error) {
       return this.handleError(error, reply);
@@ -669,6 +737,15 @@ export default new class BudgetController {
             updatedAt: true
           }
         });
+
+        await recordAudit({
+          userId: req.user.id,
+          action: isApproved ? 'budget.approve' : 'budget.reject',
+          entity: 'Orcamentos',
+          entityId: Number(id),
+          changes: { before: budget.status, after: updatedBudget.status },
+          ipAddress: req.ip,
+        }, tx);
 
         return reply.status(200).send(updatedBudget);
       });

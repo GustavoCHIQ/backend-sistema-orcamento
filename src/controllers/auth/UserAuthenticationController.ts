@@ -5,6 +5,7 @@ import { Login, ForgotPasswordBody, ResetPasswordBody } from '../../utils/types'
 import { comparePassword, hashPassword } from '../../utils/password';
 import { extractToken } from '../../middlewares/JWTAuth';
 import { sendMail, renderEmailLayout } from '../../utils/email';
+import { recordAudit } from '../../utils/auditLog';
 import crypto from 'crypto';
 
 // Constantes de segurança
@@ -55,11 +56,27 @@ export default new class UserAuthenticationController {
       // Resposta genérica para falha de autenticação (não revela se o usuário existe)
       if (!user || !passwordMatch) {
         this.recordFailedAttempt(attemptKey);
+        await recordAudit({
+          userId: user?.id ?? null,
+          action: 'auth.login_failed',
+          entity: 'Usuarios',
+          entityId: user?.id ?? null,
+          changes: { email: normalizedEmail, reason: 'invalid_credentials' },
+          ipAddress,
+        });
         return reply.status(401).send({ error: 'Credenciais inválidas' });
       }
 
       if (!user.isActive) {
         this.recordFailedAttempt(attemptKey);
+        await recordAudit({
+          userId: user.id,
+          action: 'auth.login_failed',
+          entity: 'Usuarios',
+          entityId: user.id,
+          changes: { email: normalizedEmail, reason: 'inactive_user' },
+          ipAddress,
+        });
         return reply.status(403).send({ error: 'Usuário desativado' });
       }
 
@@ -100,11 +117,20 @@ export default new class UserAuthenticationController {
         maxAge: 8 * 60 * 60, // 8 horas em segundos
       });
       
+      await recordAudit({
+        userId: user.id,
+        action: 'auth.login_success',
+        entity: 'Usuarios',
+        entityId: user.id,
+        changes: { email: normalizedEmail },
+        ipAddress,
+      });
+
       // Não retorna o token no corpo da resposta em produção
-      const responseBody = process.env.NODE_ENV === 'production' 
-        ? { success: true } 
+      const responseBody = process.env.NODE_ENV === 'production'
+        ? { success: true }
         : { token };
-        
+
       return reply.send(responseBody);
     } catch (error) {
       // Log seguro sem expor detalhes sensíveis
@@ -130,7 +156,7 @@ export default new class UserAuthenticationController {
         throw new Error('JWT_SECRET não configurado');
       }
       
-      jwt.verify(token, jwtSecret);
+      const decoded = jwt.verify(token, jwtSecret);
 
       // Remove o cookie com configurações seguras
       reply.clearCookie('access_token', {
@@ -139,7 +165,16 @@ export default new class UserAuthenticationController {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict'
       });
-      
+
+      const userId = typeof decoded === 'object' ? decoded.id : undefined;
+      await recordAudit({
+        userId: userId ?? null,
+        action: 'auth.logout',
+        entity: 'Usuarios',
+        entityId: userId ?? null,
+        ipAddress: req.ip,
+      });
+
       return reply.send({ message: 'Logout realizado com sucesso' });
     } catch (error) {
       // Mesmo em caso de erro, tenta limpar o cookie
@@ -226,6 +261,14 @@ export default new class UserAuthenticationController {
           data: { userId: user.id, tokenHash, expiresAt },
         });
 
+        await recordAudit({
+          userId: user.id,
+          action: 'auth.password_reset_requested',
+          entity: 'Usuarios',
+          entityId: user.id,
+          ipAddress: req.ip,
+        });
+
         const resetUrl = `${process.env.FRONTEND_URL || ''}/reset-password?token=${rawToken}`;
 
         try {
@@ -287,14 +330,21 @@ export default new class UserAuthenticationController {
 
       const hashedPassword = await hashPassword(password);
 
-      await prisma.$transaction([
-        prisma.usuarios.update({ where: { id: resetToken.userId }, data: { password: hashedPassword } }),
+      await prisma.$transaction(async (tx) => {
+        await tx.usuarios.update({ where: { id: resetToken.userId }, data: { password: hashedPassword } });
         // Invalida este e qualquer outro token de reset pendente do mesmo usuário
-        prisma.passwordResetToken.updateMany({
+        await tx.passwordResetToken.updateMany({
           where: { userId: resetToken.userId, usedAt: null },
           data: { usedAt: new Date() },
-        }),
-      ]);
+        });
+        await recordAudit({
+          userId: resetToken.userId,
+          action: 'auth.password_reset_completed',
+          entity: 'Usuarios',
+          entityId: resetToken.userId,
+          ipAddress: req.ip,
+        }, tx);
+      });
 
       return reply.status(200).send({ message: 'Senha redefinida com sucesso' });
     } catch (error) {

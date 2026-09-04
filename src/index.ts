@@ -76,6 +76,7 @@ server.register(swagger, {
       { name: 'Cities', description: 'Cidades' },
       { name: 'Company', description: 'Dados da empresa' },
       { name: 'Dashboard', description: 'Indicadores gerenciais' },
+      { name: 'Audit', description: 'Histórico de auditoria (logs de alteração)' },
     ],
     components: {
       securitySchemes: {

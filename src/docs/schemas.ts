@@ -580,3 +580,38 @@ export const dashboardSummarySchema = {
     },
   },
 };
+
+// ---------- Audit ----------
+export const auditLogQuerySchema = {
+  type: 'object',
+  properties: {
+    page: { type: 'string' },
+    limit: { type: 'string' },
+    userId: { type: 'string', description: 'Filtra pelo usuário que executou a ação' },
+    entity: { type: 'string', description: 'Nome do modelo afetado, ex.: Orcamentos, Usuarios' },
+    entityId: { type: 'string', description: 'ID do registro afetado' },
+    action: { type: 'string', description: 'Ex.: budget.approve, user.delete, auth.login_failed' },
+    from: { type: 'string', format: 'date-time', description: 'Filtra eventos a partir desta data (ISO 8601)' },
+    to: { type: 'string', format: 'date-time', description: 'Filtra eventos até esta data (ISO 8601)' },
+  },
+};
+
+export const auditLogSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'integer' },
+    action: { type: 'string' },
+    entity: { type: 'string' },
+    entityId: { type: 'integer', nullable: true },
+    changes: { type: 'object', nullable: true, description: 'Estado relevante da mudança (before/after, metadados)' },
+    ipAddress: { type: 'string', nullable: true },
+    createdAt: { type: 'string', format: 'date-time' },
+    user: {
+      type: 'object',
+      nullable: true,
+      properties: { id: { type: 'integer' }, name: { type: 'string' }, email: { type: 'string' } },
+    },
+  },
+};
+
+export const auditLogListResponseSchema = paginatedResponse(auditLogSchema);

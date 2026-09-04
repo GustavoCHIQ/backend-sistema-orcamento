@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply, FastifyInstance } from "fastify";
-import { Params, UpdatePasswordBody, CreateBudgetData, AddItemData, ApplyDiscountData, UpdateBudgetData, Login, ListQuery, BudgetItemParams, UpdateBudgetItemData, DashboardQuery, BudgetListQuery, ForgotPasswordBody, ResetPasswordBody } from "./utils/types";
+import { Params, UpdatePasswordBody, CreateBudgetData, AddItemData, ApplyDiscountData, UpdateBudgetData, Login, ListQuery, BudgetItemParams, UpdateBudgetItemData, DashboardQuery, BudgetListQuery, ForgotPasswordBody, ResetPasswordBody, AuditLogQuery } from "./utils/types";
 import CityController from "./controllers/city/CityController";
 import ProductController from "./controllers/products/ProductController";
 import CategoryController from "./controllers/category/CategoryController";
@@ -11,6 +11,7 @@ import SupplierController from "./controllers/supplier/SupplierController";
 import ServiceController from "./controllers/service/ServiceController";
 import UserAuthenticationController from "./controllers/auth/UserAuthenticationController";
 import DashboardController from "./controllers/dashboard/DashboardController";
+import AuditLogController from "./controllers/audit/AuditLogController";
 
 import { verifyJwt } from "./middlewares/JWTAuth";
 import { requireRole, requireSelfOrRole } from "./middlewares/RBAC";
@@ -315,6 +316,12 @@ export async function routes(server: FastifyInstance) {
     onRequest: [verifyJwt, managerOrAdmin],
     schema: { tags: ['Dashboard'], summary: 'Indicadores gerenciais (MANAGER/ADMIN)', security: auth, querystring: docs.dashboardQuerySchema, response: { 200: docs.dashboardSummarySchema, ...errorResponses } },
   }, async (req: FastifyRequest<{ Querystring: DashboardQuery }>, reply: FastifyReply) => { await DashboardController.summary(req, reply) });
+
+  // server for o histórico de auditoria (trilha de "quem fez o quê", restrito a ADMIN)
+  server.get<{ Querystring: AuditLogQuery }>("/audit-logs", {
+    onRequest: [verifyJwt, adminOnly],
+    schema: { tags: ['Audit'], summary: 'Histórico de auditoria (somente ADMIN)', security: auth, querystring: docs.auditLogQuerySchema, response: { 200: docs.auditLogListResponseSchema, ...errorResponses } },
+  }, async (req: FastifyRequest<{ Querystring: AuditLogQuery }>, reply: FastifyReply) => { await AuditLogController.findAll(req, reply) });
 
   // default route for the API
   server.get("/", { schema: { hide: true } }, async (req: FastifyRequest, reply: FastifyReply) => { reply.send({ message: "Welcome to the API" }) });
